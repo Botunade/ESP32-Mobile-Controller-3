@@ -24,6 +24,7 @@ struct SystemState {
     float pidOutput;
     float dacValue;
     bool isStatic;
+    bool systemActive;
 };
 
 class PressureWebServer {

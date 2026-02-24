@@ -18,16 +18,26 @@
 | I2C Address | **0x27** | Default for most PCF8574 modules |
 
 ### 4x4 Matrix Keypad
-| Row/Col | Pin |
-|---------|-----|
-| Row 1 | **GPIO 13** |
-| Row 2 | **GPIO 12** |
-| Row 3 | **GPIO 14** |
-| Row 4 | **GPIO 27** |
-| Col 1 | **GPIO 26** |
-| Col 2 | **GPIO 33** |
-| Col 3 | **GPIO 32** |
-| Col 4 | **GPIO 15** |
+| Row/Col | Pin | Function |
+|---------|-----|----------|
+| Row 1 | **GPIO 13** | 1, 2(Up), 3, A(F1-Home) |
+| Row 2 | **GPIO 12** | 4(Left), 5, 6(Right), B(F2-Vessel) |
+| Row 3 | **GPIO 14** | 7, 8(Down), 9, C(F3-PID) |
+| Row 4 | **GPIO 27** | *(Start), 0, #(Stop), D(F4-Setpoint) |
+| Col 1 | **GPIO 26** | |
+| Col 2 | **GPIO 33** | |
+| Col 3 | **GPIO 32** | |
+| Col 4 | **GPIO 15** | |
+
+## Navigation Logic (State Machine)
+- **F1 (A)**: Jump to **HOME**
+- **F2 (B)**: Jump to **VESSEL_SIZE**
+- **F3 (C)**: Jump to **PID_PARAMS**
+- **F4 (D)**: Jump to **SETPOINT_VOLTAGE**
+- **Start (*)**: Activate the system (PID starts controlling)
+- **Stop (#)**: Deactivate the system (Zero output + Jump to Home)
+- **Up (2) / Down (8)**: Scroll through parameters in setting menus
+- **Left (4) / Right (6)**: Decrement / Increment selected parameter value
 
 ## Control Loop
 The system runs a 10Hz PID loop:

@@ -6,12 +6,11 @@
 #include <Keypad.h>
 #include "webserver.h" // For SystemSettings and SystemState
 
-enum MenuPage {
-    MAIN_SCREEN,
-    PID_SETTINGS,
-    TANK_SETTINGS,
-    OUTPUT_SETTINGS,
-    WIFI_INFO
+enum MenuState {
+    HOME,
+    VESSEL_SIZE,
+    PID_PARAMS,
+    SETPOINT_VOLTAGE
 };
 
 class MenuSystem {
@@ -25,21 +24,18 @@ private:
     Keypad _keypad;
     SystemSettings* _settings;
     SystemState* _state;
-    MenuPage _currentPage;
+    MenuState _currentState;
 
     unsigned long _lastLcdUpdate;
+    int _editParamIndex; // To track which parameter is selected for 2/8 scrolling
 
     void handleKey(char key);
-    void drawMainScreen();
-    void drawPIDSettings();
-    void drawTankSettings();
-    void drawOutputSettings();
-    void drawWiFiInfo();
+    void drawHome();
+    void drawVesselSize();
+    void drawPIDParams();
+    void drawSetpointVoltage();
 
-    // Simple numeric editor
-    float _tempValue;
-    bool _isEditing;
-    int _editParamIndex;
+    void updateLCD();
 };
 
 #endif

@@ -57,6 +57,7 @@ void setup() {
     Serial.println("--- Pressure Control System Initializing ---");
 
     loadSettings();
+    state.systemActive = false;
 
     sensor.begin();
 
@@ -103,9 +104,13 @@ void loop() {
         state.pidOutput = pid.compute(targetVoltage, currentVoltage);
 
         // 4. Map to PWM 0-1023
-        state.dacValue = (int)((state.pidOutput / 3.3f) * 1023.0f);
-        if (state.dacValue > 1023) state.dacValue = 1023;
-        if (state.dacValue < 0) state.dacValue = 0;
+        if (state.systemActive) {
+            state.dacValue = (int)((state.pidOutput / 3.3f) * 1023.0f);
+            if (state.dacValue > 1023) state.dacValue = 1023;
+            if (state.dacValue < 0) state.dacValue = 0;
+        } else {
+            state.dacValue = 0;
+        }
 
         // 5. Soft Ramp Limiting
         static float currentPWMValue = 0;

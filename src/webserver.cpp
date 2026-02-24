@@ -24,7 +24,7 @@ const char* DASHBOARD_HTML = R"=====(
         <div id="static-warning" class="warning" style="display:none;">PID output not changing – check scaling</div>
         <div class="grid">
             <div class="card">
-                <h3>Live Status</h3>
+                <h3>Live Status [<span id="status">IDLE</span>]</h3>
                 <p>Pressure: <span id="pressure">0.0</span> PSI</p>
                 <p>Control Voltage: <span id="voltage">0.0</span> V</p>
                 <p>Setpoint: <span id="setpoint-display">0.0</span> PSI</p>
@@ -78,6 +78,7 @@ const char* DASHBOARD_HTML = R"=====(
                 document.getElementById('pressure').innerText = data.pressure.toFixed(2);
                 document.getElementById('voltage').innerText = data.voltage.toFixed(2);
                 document.getElementById('setpoint-display').innerText = data.setpoint.toFixed(2);
+                document.getElementById('status').innerText = data.active ? 'RUNNING' : 'IDLE';
                 document.getElementById('static-warning').style.display = data.isStatic ? 'block' : 'none';
 
                 dataHistory.push(data.pressure);
@@ -156,6 +157,7 @@ void PressureWebServer::handleData() {
     doc["pressure"] = _state->pressure;
     doc["voltage"] = _state->controlVoltage;
     doc["isStatic"] = _state->isStatic;
+    doc["active"] = _state->systemActive;
     doc["kp"] = _settings->kp;
     doc["ki"] = _settings->ki;
     doc["kd"] = _settings->kd;
