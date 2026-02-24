@@ -66,10 +66,23 @@ void MenuSystem::handleKey(char key) {
     else if (key == '#') {
         if (_isEditing) {
             // Apply temp value to current page parameter
-            if (_currentPage == MAIN_SCREEN) _settings->setpoint = _tempValue;
-            else if (_currentPage == PID_SETTINGS) _settings->kp = _tempValue;
+            if (_currentPage == MAIN_SCREEN) {
+                _settings->setpoint = _tempValue;
+            } else if (_currentPage == PID_SETTINGS) {
+                if (_editParamIndex == 0) _settings->kp = _tempValue / 10.0f;
+                else if (_editParamIndex == 1) _settings->ki = _tempValue / 10.0f;
+                else if (_editParamIndex == 2) _settings->kd = _tempValue / 100.0f;
+            } else if (_currentPage == TANK_SETTINGS) {
+                _settings->tankVolume = (int)_tempValue;
+            } else if (_currentPage == OUTPUT_SETTINGS) {
+                if (_editParamIndex == 0) _settings->minVoltage = _tempValue / 10.0f;
+                else if (_editParamIndex == 1) _settings->maxVoltage = _tempValue / 10.0f;
+            }
             _isEditing = false;
             _tempValue = 0;
+        } else {
+            // Toggle param index
+            _editParamIndex = (_editParamIndex + 1) % 3;
         }
     }
 }
@@ -104,9 +117,18 @@ void MenuSystem::drawMainScreen() {
 
 void MenuSystem::drawPIDSettings() {
     _lcd.setCursor(0, 0); _lcd.print("--- PID SETTINGS ---");
-    _lcd.setCursor(0, 1); _lcd.print("Kp: "); _lcd.print(_settings->kp); _lcd.print("     ");
-    _lcd.setCursor(0, 2); _lcd.print("Ki: "); _lcd.print(_settings->ki); _lcd.print("     ");
-    _lcd.setCursor(0, 3); _lcd.print("Kd: "); _lcd.print(_settings->kd); _lcd.print("     ");
+
+    _lcd.setCursor(0, 1); _lcd.print(_editParamIndex == 0 ? ">Kp: " : " Kp: ");
+    if (_isEditing && _editParamIndex == 0) _lcd.print(_tempValue/10.0f); else _lcd.print(_settings->kp);
+    _lcd.print("     ");
+
+    _lcd.setCursor(0, 2); _lcd.print(_editParamIndex == 1 ? ">Ki: " : " Ki: ");
+    if (_isEditing && _editParamIndex == 1) _lcd.print(_tempValue/10.0f); else _lcd.print(_settings->ki);
+    _lcd.print("     ");
+
+    _lcd.setCursor(0, 3); _lcd.print(_editParamIndex == 2 ? ">Kd: " : " Kd: ");
+    if (_isEditing && _editParamIndex == 2) _lcd.print(_tempValue/100.0f); else _lcd.print(_settings->kd);
+    _lcd.print("     ");
 }
 
 void MenuSystem::drawTankSettings() {

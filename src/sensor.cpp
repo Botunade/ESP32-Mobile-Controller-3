@@ -50,7 +50,12 @@ float PressureSensor::readPressure() {
 float PressureSensor::adcToVoltage(int adcValue) {
     // ESP32 ADC is 12-bit (0-4095)
     // At 11dB attenuation, range is approx 0-3.3V
-    return ((float)adcValue / 4095.0f) * 3.3f;
+    // Adding linear correction for ESP32 ADC non-linearity
+    if (adcValue < 1) return 0.0f;
+    float voltage = ((float)adcValue / 4095.0f) * 3.1f + 0.15f;
+    if (voltage > 3.3f) voltage = 3.3f;
+    if (voltage < 0.0f) voltage = 0.0f;
+    return voltage;
 }
 
 float PressureSensor::getRawVoltage() {

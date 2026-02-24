@@ -26,7 +26,7 @@ SystemState state;
 
 // Timing
 unsigned long lastControlLoop = 0;
-const int CONTROL_LOOP_MS = 100; // 10Hz PID loop
+const int CONTROL_LOOP_MS = 50; // 20Hz PID loop (refined requirement)
 
 void loadSettings() {
     preferences.begin("pressure-ctrl", false);
@@ -60,11 +60,16 @@ void setup() {
 
     sensor.begin();
 
+    // PWM Setup (LEDC)
+    const int freq = 5000;
+    const int resolution = 10; // 10-bit (0-1023)
+    const int channel = 0;
+    ledcSetup(channel, freq, resolution);
+    ledcAttachPin(VALVE_CONTROL_PIN, channel);
+
     pid.setTunings(settings.kp, settings.ki, settings.kd);
-    // Map voltage limits (0-3.3V) to DAC limits (0-255)
-    float minDac = (settings.minVoltage / 3.3f) * 255.0f;
-    float maxDac = (settings.maxVoltage / 3.3f) * 255.0f;
-    pid.setOutputLimits(minDac, maxDac);
+    // Normalization: PID operates on 0.0 - 3.3V scale
+    pid.setOutputLimits(settings.minVoltage, settings.maxVoltage);
     pid.setSampleTime(CONTROL_LOOP_MS);
 
     webServer.begin(&settings, &state);
@@ -87,36 +92,37 @@ void loop() {
         // Update pressure percentage (based on 0-150 PSI range)
         state.pressurePercent = (state.pressure / 150.0f) * 100.0f;
 
-        // 3. Compute PID
-        // Ensure PID tunings and limits are updated if they changed via web/menu
+        // 3. Compute PID (Normalized to 0-3.3V)
         pid.setTunings(settings.kp, settings.ki, settings.kd);
-        float minDac = (settings.minVoltage / 3.3f) * 255.0f;
-        float maxDac = (settings.maxVoltage / 3.3f) * 255.0f;
-        pid.setOutputLimits(minDac, maxDac);
+        pid.setOutputLimits(settings.minVoltage, settings.maxVoltage);
 
-        state.pidOutput = pid.compute(settings.setpoint, state.pressure);
+        // Map PSI setpoint to Voltage for PID
+        float targetVoltage = (((settings.setpoint / 1250.0f) + 1.0f) * (3.3f / 5.0f));
+        float currentVoltage = sensor.getRawVoltage();
 
-        // 4. Map to DAC 0-255 (PID output is already in DAC units 0-255)
-        state.dacValue = (int)state.pidOutput;
-        if (state.dacValue > 255) state.dacValue = 255;
+        state.pidOutput = pid.compute(targetVoltage, currentVoltage);
+
+        // 4. Map to PWM 0-1023
+        state.dacValue = (int)((state.pidOutput / 3.3f) * 1023.0f);
+        if (state.dacValue > 1023) state.dacValue = 1023;
         if (state.dacValue < 0) state.dacValue = 0;
 
         // 5. Soft Ramp Limiting
-        static float currentDacValue = 0;
-        const float maxStep = 25.0f; // Limit change to 25 units per 100ms
-        if (state.dacValue > currentDacValue + maxStep) {
-            currentDacValue += maxStep;
-        } else if (state.dacValue < currentDacValue - maxStep) {
-            currentDacValue -= maxStep;
+        static float currentPWMValue = 0;
+        const float maxStep = 50.0f; // Limit change to 50 units per 50ms
+        if (state.dacValue > currentPWMValue + maxStep) {
+            currentPWMValue += maxStep;
+        } else if (state.dacValue < currentPWMValue - maxStep) {
+            currentPWMValue -= maxStep;
         } else {
-            currentDacValue = state.dacValue;
+            currentPWMValue = state.dacValue;
         }
 
-        // 6. Write to GPIO25
-        dacWrite(VALVE_CONTROL_PIN, (uint8_t)currentDacValue);
+        // 6. Write to GPIO25 via LEDC
+        ledcWrite(0, (uint32_t)currentPWMValue);
 
         // Calculate control voltage for display
-        state.controlVoltage = (state.dacValue / 255.0f) * 3.3f;
+        state.controlVoltage = (state.dacValue / 1023.0f) * 3.3f;
 
         // Diagnostic flag
         state.isStatic = pid.isStatic();
@@ -124,22 +130,25 @@ void loop() {
             Serial.println("WARNING: PID output not changing – check scaling");
         }
 
-        // Serial Debug
-        Serial.print("P: "); Serial.print(state.pressure);
-        Serial.print(" PSI | SP: "); Serial.print(settings.setpoint);
-        Serial.print(" | ERR: "); Serial.print(settings.setpoint - state.pressure);
-        Serial.print(" | PID: "); Serial.print(state.pidOutput);
-        Serial.print(" | DAC: "); Serial.println(state.dacValue);
+        // Serial Plotter Output: Setpoint (V), Input (V)
+        Serial.print(targetVoltage);
+        Serial.print(",");
+        Serial.println(currentVoltage);
     }
 
     // Update Web and Menu
     webServer.handle();
     menu.update();
 
-    // Save settings periodically if changed (simple logic: every 30s)
+    // Save settings periodically if they have changed
     static unsigned long lastSave = 0;
+    static SystemSettings lastSavedSettings = {0};
     if (now - lastSave > 30000) {
         lastSave = now;
-        saveSettings();
+        if (memcmp(&settings, &lastSavedSettings, sizeof(SystemSettings)) != 0) {
+            saveSettings();
+            memcpy(&lastSavedSettings, &settings, sizeof(SystemSettings));
+            Serial.println("Settings saved to NVS.");
+        }
     }
 }

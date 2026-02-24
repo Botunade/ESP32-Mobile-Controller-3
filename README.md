@@ -6,7 +6,9 @@
 | Component | Pin | Notes |
 |-----------|-----|-------|
 | Pressure Sensor | **GPIO 34** | Analog Input (12-bit ADC) |
-| Control Valve | **GPIO 25** | Analog Output (8-bit DAC) |
+| Control Valve | **GPIO 25** | PWM Output (LEDC) + RC Filter |
+
+**RC Filter Recommendation**: 4.7kΩ resistor and 10µF capacitor to smooth PWM into analog DC.
 
 ### Display (20x4 LCD via I2C)
 | Component | Pin | Notes |
@@ -35,6 +37,13 @@ The system runs a 10Hz PID loop:
 4. Apply Soft Ramp limiting to DAC output.
 5. Write to DAC (GPIO 25).
 6. Update LCD and Web Dashboard.
+
+## Tuning Guide
+If the output voltage starts oscillating:
+1. **Reduce Ki**: Integral gain can cause overshoot and oscillation if too high.
+2. **Reduce Kp**: If the system reacts too violently to small errors.
+3. **Increase Kd**: Derivative gain can help dampen oscillations, but too much can introduce noise.
+4. **Increase Sample Time**: If the ESP32 can't keep up (current is 50ms).
 
 ## Features
 - **WiFi Access Point**: `PressureControl_AP` (IP: 192.168.4.1)
