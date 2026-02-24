@@ -8,6 +8,9 @@ char keys[ROWS][COLS] = {
   {'7','8','9','C'},
   {'*','0','#','D'}
 };
+// Keypad Pinout:
+// Rows: 13, 12, 14, 27
+// Cols: 26, 33, 32, 15
 byte rowPins[ROWS] = {13, 12, 14, 27};
 byte colPins[COLS] = {26, 33, 32, 15};
 

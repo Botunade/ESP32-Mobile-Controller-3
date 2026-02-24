@@ -5,9 +5,13 @@
 #include "webserver.h"
 #include "menu.h"
 
-// Hardware Pins
+// Hardware Pins Configuration
+// Pressure Sensor: GPIO 34 (Analog Input)
 const int PRESSURE_SENSOR_PIN = 34;
-const int VALVE_CONTROL_PIN = 25; // DAC Output
+// Control Valve: GPIO 25 (DAC Output 1)
+const int VALVE_CONTROL_PIN = 25;
+// I2C Pins for LCD: SDA = GPIO 21, SCL = GPIO 22 (Default)
+// Keypad Pins: Rows = {13, 12, 14, 27}, Cols = {26, 33, 32, 15}
 
 // Global Objects
 PressureSensor sensor(PRESSURE_SENSOR_PIN);
