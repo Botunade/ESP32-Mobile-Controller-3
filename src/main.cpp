@@ -5,13 +5,9 @@
 #include "webserver.h"
 #include "menu.h"
 
-// Hardware Pins Configuration
-// Pressure Sensor: GPIO 34 (Analog Input)
+// Hardware Pins
 const int PRESSURE_SENSOR_PIN = 34;
-// Control Valve: GPIO 25 (DAC Output 1)
-const int VALVE_CONTROL_PIN = 25;
-// I2C Pins for LCD: SDA = GPIO 21, SCL = GPIO 22 (Default)
-// Keypad Pins: Rows = {13, 12, 14, 27}, Cols = {26, 33, 32, 15}
+const int VALVE_CONTROL_PIN = 25; // DAC1
 
 // Global Objects
 PressureSensor sensor(PRESSURE_SENSOR_PIN);
@@ -26,17 +22,32 @@ SystemState state;
 
 // Timing
 unsigned long lastControlLoop = 0;
-const int CONTROL_LOOP_MS = 50; // 20Hz PID loop (refined requirement)
 
 void loadSettings() {
     preferences.begin("pressure-ctrl", false);
+    // PID
     settings.kp = preferences.getFloat("kp", 1.0f);
     settings.ki = preferences.getFloat("ki", 0.1f);
     settings.kd = preferences.getFloat("kd", 0.01f);
+    settings.sampleTime = preferences.getInt("sampleTime", 50);
+
+    // Pressure Control
     settings.setpoint = preferences.getFloat("setpoint", 50.0f);
+    settings.maxPressure = preferences.getFloat("maxPress", 150.0f);
+    settings.units = preferences.getInt("units", 0);
+
+    // Output
     settings.minVoltage = preferences.getFloat("minV", 0.0f);
     settings.maxVoltage = preferences.getFloat("maxV", 3.3f);
+    settings.rampRate = preferences.getFloat("rampRate", 50.0f);
+    settings.calibrationFactor = preferences.getFloat("calFact", 1.0f);
+
+    // Tank
     settings.tankVolume = preferences.getInt("tankVol", 100);
+
+    // Sensor Calibration
+    settings.lowVoltage = preferences.getFloat("lowV", 0.434f);
+    settings.highVoltage = preferences.getFloat("highV", 0.712f);
     preferences.end();
 }
 
@@ -45,10 +56,17 @@ void saveSettings() {
     preferences.putFloat("kp", settings.kp);
     preferences.putFloat("ki", settings.ki);
     preferences.putFloat("kd", settings.kd);
+    preferences.putInt("sampleTime", settings.sampleTime);
     preferences.putFloat("setpoint", settings.setpoint);
+    preferences.putFloat("maxPress", settings.maxPressure);
+    preferences.putInt("units", settings.units);
     preferences.putFloat("minV", settings.minVoltage);
     preferences.putFloat("maxV", settings.maxVoltage);
+    preferences.putFloat("rampRate", settings.rampRate);
+    preferences.putFloat("calFact", settings.calibrationFactor);
     preferences.putInt("tankVol", settings.tankVolume);
+    preferences.putFloat("lowV", settings.lowVoltage);
+    preferences.putFloat("highV", settings.highVoltage);
     preferences.end();
 }
 
@@ -61,17 +79,9 @@ void setup() {
 
     sensor.begin();
 
-    // PWM Setup (LEDC)
-    const int freq = 5000;
-    const int resolution = 10; // 10-bit (0-1023)
-    const int channel = 0;
-    ledcSetup(channel, freq, resolution);
-    ledcAttachPin(VALVE_CONTROL_PIN, channel);
-
     pid.setTunings(settings.kp, settings.ki, settings.kd);
-    // Normalization: PID operates on 0.0 - 3.3V scale
     pid.setOutputLimits(settings.minVoltage, settings.maxVoltage);
-    pid.setSampleTime(CONTROL_LOOP_MS);
+    pid.setSampleTime(settings.sampleTime);
 
     webServer.begin(&settings, &state);
     menu.begin(&settings, &state);
@@ -83,77 +93,92 @@ void loop() {
     unsigned long now = millis();
 
     // CRITICAL CONTROL LOOP
-    if (now - lastControlLoop >= CONTROL_LOOP_MS) {
+    if (now - lastControlLoop >= settings.sampleTime) {
         lastControlLoop = now;
 
-        // 1. Read & Filter ADC (inside readPressure)
-        // 2. Convert to voltage & PSI (inside readPressure)
-        state.pressure = sensor.readPressure();
+        // 1. Read ADC, Oversample, Filter, and Map to 0-100%
+        state.pressurePercent = sensor.readPressure(settings.lowVoltage, settings.highVoltage, settings.calibrationFactor);
 
-        // Update pressure percentage (based on 0-150 PSI range)
-        state.pressurePercent = (state.pressure / 150.0f) * 100.0f;
+        // Map pressure percentage to current units for display and PID
+        if (settings.units == 1) { // PSI
+            state.pressure = (state.pressurePercent / 100.0f) * settings.maxPressure;
+        } else if (settings.units == 2) { // BAR (approx 1 BAR = 14.5 PSI)
+            state.pressure = (state.pressurePercent / 100.0f) * (settings.maxPressure / 14.5038f);
+        } else { // %
+            state.pressure = state.pressurePercent;
+        }
 
-        // 3. Compute PID (Normalized to 0-3.3V)
+        // 3. Compute PID
         pid.setTunings(settings.kp, settings.ki, settings.kd);
         pid.setOutputLimits(settings.minVoltage, settings.maxVoltage);
+        pid.setSampleTime(settings.sampleTime);
 
-        // Map PSI setpoint to Voltage for PID
-        float targetVoltage = (((settings.setpoint / 1250.0f) + 1.0f) * (3.3f / 5.0f));
-        float currentVoltage = sensor.getRawVoltage();
+        // Normalize PID: Target and Input should be in the same scale (Voltage)
+        // Setpoint is in current units, convert to percent then to voltage
+        float setpointPercent = 0;
+        if (settings.units == 1) setpointPercent = (settings.setpoint / settings.maxPressure) * 100.0f;
+        else if (settings.units == 2) setpointPercent = (settings.setpoint / (settings.maxPressure / 14.5038f)) * 100.0f;
+        else setpointPercent = settings.setpoint;
+
+        float targetVoltage = settings.lowVoltage + (setpointPercent / 100.0f) * (settings.highVoltage - settings.lowVoltage);
+        float currentVoltage = sensor.getRawVoltage(settings.calibrationFactor);
 
         state.pidOutput = pid.compute(targetVoltage, currentVoltage);
 
-        // 4. Map to PWM 0-1023
+        // 4. Output Logic
         if (state.systemActive) {
-            state.dacValue = (int)((state.pidOutput / 3.3f) * 1023.0f);
-            if (state.dacValue > 1023) state.dacValue = 1023;
+            float targetOutput = state.pidOutput;
+
+            // Soft Ramp Limiting
+            static float currentOutputVoltage = 0;
+            float maxStep = (settings.rampRate * settings.sampleTime) / 1000.0f;
+
+            if (targetOutput > currentOutputVoltage + maxStep) {
+                currentOutputVoltage += maxStep;
+            } else if (targetOutput < currentOutputVoltage - maxStep) {
+                currentOutputVoltage -= maxStep;
+            } else {
+                currentOutputVoltage = targetOutput;
+            }
+
+            state.controlVoltage = currentOutputVoltage;
+            // Map voltage (0-3.3V) to DAC (0-255)
+            state.dacValue = (state.controlVoltage / 3.3f) * 255.0f;
+            if (state.dacValue > 255) state.dacValue = 255;
             if (state.dacValue < 0) state.dacValue = 0;
         } else {
             state.dacValue = 0;
+            state.controlVoltage = 0;
         }
 
-        // 5. Soft Ramp Limiting
-        static float currentPWMValue = 0;
-        const float maxStep = 50.0f; // Limit change to 50 units per 50ms
-        if (state.dacValue > currentPWMValue + maxStep) {
-            currentPWMValue += maxStep;
-        } else if (state.dacValue < currentPWMValue - maxStep) {
-            currentPWMValue -= maxStep;
-        } else {
-            currentPWMValue = state.dacValue;
-        }
+        // Write to DAC1 (GPIO 25)
+        dacWrite(VALVE_CONTROL_PIN, (uint8_t)state.dacValue);
 
-        // 6. Write to GPIO25 via LEDC
-        ledcWrite(0, (uint32_t)currentPWMValue);
-
-        // Calculate control voltage for display
-        state.controlVoltage = (state.dacValue / 1023.0f) * 3.3f;
-
-        // Diagnostic flag
+        // Diagnostics
         state.isStatic = pid.isStatic();
-        if (state.isStatic) {
-            Serial.println("WARNING: PID output not changing – check scaling");
+        if (state.isStatic && abs(targetVoltage - currentVoltage) > 0.01f) {
+            Serial.println("WARNING: PID output static with nonzero error");
         }
 
-        // Serial Plotter Output: Setpoint (V), Input (V)
-        Serial.print(targetVoltage);
+        // Serial Debug: Setpoint, pressure %, PID output, DAC value
+        Serial.print(settings.setpoint, 2);
         Serial.print(",");
-        Serial.println(currentVoltage);
+        Serial.print(state.pressurePercent, 2);
+        Serial.print(",");
+        Serial.print(state.pidOutput, 3);
+        Serial.print(",");
+        Serial.println(state.dacValue);
     }
 
     // Update Web and Menu
     webServer.handle();
     menu.update();
 
-    // Save settings periodically if they have changed
-    static unsigned long lastSave = 0;
+    // Save settings if they have changed (immediate save as per requirement)
     static SystemSettings lastSavedSettings = {0};
-    if (now - lastSave > 30000) {
-        lastSave = now;
-        if (memcmp(&settings, &lastSavedSettings, sizeof(SystemSettings)) != 0) {
-            saveSettings();
-            memcpy(&lastSavedSettings, &settings, sizeof(SystemSettings));
-            Serial.println("Settings saved to NVS.");
-        }
+    if (memcmp(&settings, &lastSavedSettings, sizeof(SystemSettings)) != 0) {
+        saveSettings();
+        memcpy(&lastSavedSettings, &settings, sizeof(SystemSettings));
+        Serial.println("Settings saved to NVS.");
     }
 }

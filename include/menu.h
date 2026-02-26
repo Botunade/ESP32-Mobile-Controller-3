@@ -4,13 +4,15 @@
 #include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
-#include "webserver.h" // For SystemSettings and SystemState
+#include "webserver.h"
 
 enum MenuState {
     HOME,
-    VESSEL_SIZE,
-    PID_PARAMS,
-    SETPOINT_VOLTAGE
+    PID_SETTINGS,
+    TANK_SETTINGS,
+    OUTPUT_SETTINGS,
+    SYSTEM_SETTINGS,
+    EDIT_VALUE
 };
 
 class MenuSystem {
@@ -25,15 +27,26 @@ private:
     SystemSettings* _settings;
     SystemState* _state;
     MenuState _currentState;
+    MenuState _previousState;
 
     unsigned long _lastLcdUpdate;
-    int _editParamIndex; // To track which parameter is selected for 2/8 scrolling
+    int _cursorPos;
+    float* _targetFloat;
+    int* _targetInt;
+    String _inputBuffer;
+    String _editLabel;
 
     void handleKey(char key);
     void drawHome();
-    void drawVesselSize();
-    void drawPIDParams();
-    void drawSetpointVoltage();
+    void drawPIDSettings();
+    void drawTankSettings();
+    void drawOutputSettings();
+    void drawSystemSettings();
+    void drawEditValue();
+
+    void startEditing(String label, float* target);
+    void startEditing(String label, int* target);
+    void finishEditing(bool save);
 
     void updateLCD();
 };
