@@ -20,7 +20,10 @@ void FirebaseManager::setupFirebase() {
         Serial.println("Firebase Auth Setup OK");
         _firebaseReady = true;
     } else {
+        _firebaseReady = false;
         Serial.printf("Firebase Auth Error: %s\n", config.signer.signupError.message.c_str());
+        // Detailed error for debugging
+        Serial.printf("Error Reason: %s\n", fbdo.errorReason().c_str());
     }
 
     // config.token_status_callback = tokenStatusCallback; // Silenced to reduce log spam
@@ -112,6 +115,15 @@ void FirebaseManager::checkCommands() {
             Serial.println("Cloud command received: stop_system");
             _state->systemActive = false;
             Firebase.RTDB.setBool(&fbdo, stopPath.c_str(), false);
+        }
+    }
+
+    String solPath = "/devices/esp32_controller_1/commands/toggle_solenoid";
+    if (Firebase.RTDB.getBool(&fbdo, solPath.c_str())) {
+        if (fbdo.dataType() == "boolean" && fbdo.boolData() == true) {
+            Serial.println("Cloud command received: toggle_solenoid");
+            _state->solenoidState = !_state->solenoidState;
+            Firebase.RTDB.setBool(&fbdo, solPath.c_str(), false);
         }
     }
 }

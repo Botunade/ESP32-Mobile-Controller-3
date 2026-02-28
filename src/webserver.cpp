@@ -292,7 +292,7 @@ const char* DASHBOARD_HTML = R"=====(
                 <h3 style="margin-bottom: 0.25rem;">Solenoid Valve Override</h3>
                 <p style="font-size: 0.875rem; color: var(--text-muted);">Manually trigger the relay to open/close the valve.</p>
             </div>
-            <button id="btn-solenoid" class="btn-update" style="width: auto; background: var(--border); color: var(--text-main); margin-top: 0;" onclick="toggleSolenoid()">
+            <button id="btn-solenoid" class="btn-update" data-state="off" style="width: auto; background: var(--border); color: var(--text-main); margin-top: 0;" onclick="toggleSolenoid()">
                 VALVE OFF
             </button>
         </div>
@@ -548,15 +548,19 @@ const char* DASHBOARD_HTML = R"=====(
                 }
 
                 // Solenoid Button State Update
-                const solBtn = document.getElementById('btn-solenoid');
-                if(data.solenoid) {
-                    solBtn.innerText = 'VALVE ON';
-                    solBtn.style.background = 'var(--primary)';
-                    solBtn.style.color = 'white';
-                } else {
-                    solBtn.innerText = 'VALVE OFF';
-                    solBtn.style.background = 'var(--border)';
-                    solBtn.style.color = 'var(--text-main)';
+                if(!isUpdatingSolenoid) {
+                    const solBtn = document.getElementById('btn-solenoid');
+                    if(data.solenoid) {
+                        solBtn.innerText = 'VALVE ON';
+                        solBtn.style.background = 'var(--primary)';
+                        solBtn.style.color = 'white';
+                        solBtn.setAttribute('data-state', 'on');
+                    } else {
+                        solBtn.innerText = 'VALVE OFF';
+                        solBtn.style.background = 'var(--border)';
+                        solBtn.style.color = 'var(--text-main)';
+                        solBtn.setAttribute('data-state', 'off');
+                    }
                 }
 
                 // Warnings
@@ -593,15 +597,34 @@ const char* DASHBOARD_HTML = R"=====(
             } catch (e) { console.error('Data fetch failed', e); }
         }
 
+        let isUpdatingSolenoid = false; // Flag to prevent jitter during fetch
         async function toggleSolenoid() {
             const btn = document.getElementById('btn-solenoid');
-            const isCurrentlyOn = btn.innerText === 'VALVE ON';
-            const newState = isCurrentlyOn ? '0' : '1';
+            const state = btn.getAttribute('data-state');
+            const turnOn = (state !== 'on');
             
+            // 1. Instant UI Feedback (Optimistic)
+            isUpdatingSolenoid = true;
+            if(turnOn) {
+                btn.innerText = 'VALVE ON';
+                btn.style.background = 'var(--primary)';
+                btn.style.color = 'white';
+                btn.setAttribute('data-state', 'on');
+            } else {
+                btn.innerText = 'VALVE OFF';
+                btn.style.background = 'var(--border)';
+                btn.style.color = 'var(--text-main)';
+                btn.setAttribute('data-state', 'off');
+            }
+
             try {
-                await fetch('/update?solenoid=' + newState);
-                // The next fetchData() cycle will update the button UI
-            } catch(e) { console.error('Failed to toggle solenoid', e); }
+                await fetch('/update?solenoid=' + (turnOn ? '1' : '0'));
+                // Briefly wait before allowing fetchData to overwrite UI
+                setTimeout(() => { isUpdatingSolenoid = false; }, 1500);
+            } catch(e) { 
+                console.error('Failed to toggle solenoid', e); 
+                isUpdatingSolenoid = false;
+            }
         }
 
         async function updateSettings() {
@@ -762,7 +785,11 @@ void PressureWebServer::handleData() {
 
 void PressureWebServer::handleUpdate() {
     if (_server.hasArg("tankVol")) _settings->tankVolume = _server.arg("tankVol").toInt();
-    if (_server.hasArg("solenoid")) _state->solenoidState = (_server.arg("solenoid") == "1");
+    if (_server.hasArg("solenoid")) {
+        _state->solenoidState = (_server.arg("solenoid") == "1");
+        Serial.print("Local Solenoid Command: ");
+        Serial.println(_state->solenoidState ? "OPEN" : "CLOSED");
+    }
     if (_server.hasArg("kp")) _settings->kp = _server.arg("kp").toFloat();
     if (_server.hasArg("ki")) _settings->ki = _server.arg("ki").toFloat();
     if (_server.hasArg("kd")) _settings->kd = _server.arg("kd").toFloat();
