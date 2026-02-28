@@ -54,7 +54,7 @@ void MenuSystem::handleKey(char key) {
     if (_currentState != HOME) {
         if (key == '2') { // UP
             _editParamIndex--;
-            if (_editParamIndex < 0) _editParamIndex = 2; // Wrap around (most menus have 3 params max)
+            if (_editParamIndex < 0) _editParamIndex = 2; 
         }
         else if (key == '8') { // DOWN
             _editParamIndex++;
@@ -63,7 +63,7 @@ void MenuSystem::handleKey(char key) {
         else if (key == '4') { // LEFT (Decrement)
             switch (_currentState) {
                 case VESSEL_SIZE:
-                    _settings->tankVolume -= 10;
+                    _settings->tankVolume -= 1;
                     if (_settings->tankVolume < 0) _settings->tankVolume = 0;
                     break;
                 case PID_PARAMS:
@@ -72,7 +72,7 @@ void MenuSystem::handleKey(char key) {
                     else if (_editParamIndex == 2) _settings->kd -= 0.01f;
                     break;
                 case SETPOINT_VOLTAGE:
-                    if (_editParamIndex == 0) _settings->setpoint -= 1.0f;
+                    if (_editParamIndex == 0) _settings->setpoint -= 0.1f;
                     else if (_editParamIndex == 1) _settings->minVoltage -= 0.1f;
                     else if (_editParamIndex == 2) _settings->maxVoltage -= 0.1f;
                     break;
@@ -82,7 +82,8 @@ void MenuSystem::handleKey(char key) {
         else if (key == '6') { // RIGHT (Increment)
             switch (_currentState) {
                 case VESSEL_SIZE:
-                    _settings->tankVolume += 10;
+                    _settings->tankVolume += 1;
+                    if (_settings->tankVolume > 8) _settings->tankVolume = 8;
                     break;
                 case PID_PARAMS:
                     if (_editParamIndex == 0) _settings->kp += 0.1f;
@@ -90,7 +91,7 @@ void MenuSystem::handleKey(char key) {
                     else if (_editParamIndex == 2) _settings->kd += 0.01f;
                     break;
                 case SETPOINT_VOLTAGE:
-                    if (_editParamIndex == 0) _settings->setpoint += 1.0f;
+                    if (_editParamIndex == 0) _settings->setpoint += 0.1f;
                     else if (_editParamIndex == 1) _settings->minVoltage += 0.1f;
                     else if (_editParamIndex == 2) _settings->maxVoltage += 0.1f;
                     break;
@@ -113,11 +114,11 @@ void MenuSystem::drawHome() {
     _lcd.setCursor(0, 0);
     _lcd.print("--- SYSTEM HOME ---");
     _lcd.setCursor(0, 1);
-    _lcd.print("Setpoint: "); _lcd.print(_settings->setpoint, 1); _lcd.print(" PSI  ");
+    _lcd.print("Setpoint: "); _lcd.print(_settings->setpoint, 2); _lcd.print(" BAR ");
     _lcd.setCursor(0, 2);
-    _lcd.print("Current:  "); _lcd.print(_state->pressurePercent, 1); _lcd.print("%    ");
+    _lcd.print("Pressure: "); _lcd.print(_state->pressure, 2); _lcd.print(" BAR ");
     _lcd.setCursor(0, 3);
-    _lcd.print("Voltage:  "); _lcd.print(_state->controlVoltage, 2); _lcd.print("V  ");
+    _lcd.print("Vol: "); _lcd.print(_state->airVolume, 1); _lcd.print("L ");
     if (!_state->systemActive) {
         _lcd.setCursor(14, 3); _lcd.print("[IDLE]");
     } else {
@@ -129,7 +130,7 @@ void MenuSystem::drawVesselSize() {
     _lcd.setCursor(0, 0); _lcd.print("--- VESSEL SIZE ---");
     _lcd.setCursor(0, 1);
     _lcd.print(_editParamIndex == 0 ? "> Volume: " : "  Volume: ");
-    _lcd.print(_settings->tankVolume); _lcd.print(" L   ");
+    _lcd.print(_settings->tankVolume); _lcd.print(" L (Max 8)");
     _lcd.setCursor(0, 2); _lcd.print("                    ");
     _lcd.setCursor(0, 3); _lcd.print("                    ");
 }
@@ -147,7 +148,7 @@ void MenuSystem::drawPIDParams() {
 void MenuSystem::drawSetpointVoltage() {
     _lcd.setCursor(0, 0); _lcd.print("-- SETPOINT/VOLT --");
     _lcd.setCursor(0, 1);
-    _lcd.print(_editParamIndex == 0 ? "> SP:  " : "  SP:  "); _lcd.print(_settings->setpoint, 1); _lcd.print(" PSI ");
+    _lcd.print(_editParamIndex == 0 ? "> SP:  " : "  SP:  "); _lcd.print(_settings->setpoint, 2); _lcd.print(" BAR ");
     _lcd.setCursor(0, 2);
     _lcd.print(_editParamIndex == 1 ? "> Min: " : "  Min: "); _lcd.print(_settings->minVoltage, 1); _lcd.print("V    ");
     _lcd.setCursor(0, 3);

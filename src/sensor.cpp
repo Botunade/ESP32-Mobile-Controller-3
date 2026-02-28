@@ -26,7 +26,7 @@ void PressureSensor::begin() {
     _bufferSum = (float)initialRead * _numSamples;
 }
 
-float PressureSensor::readPressure() {
+float PressureSensor::readPressure(float minV, float maxV, float maxBar, float workingMaxBar, float accuracyMinV, float accuracyMaxV, float& normalized, float& scaled3v3) {
     // 1. Oversampling
     long sum = 0;
     for (int i = 0; i < _numSamples; i++) {
@@ -34,45 +34,43 @@ float PressureSensor::readPressure() {
     }
     float currentADC = (float)sum / _numSamples;
 
-    // 2. Moving Average Filter
-    _bufferSum -= _movingAvgBuffer[_bufferIndex];
-    _movingAvgBuffer[_bufferIndex] = currentADC;
-    _bufferSum += _movingAvgBuffer[_bufferIndex];
-    _bufferIndex = (_bufferIndex + 1) % _numSamples;
-    float movingAvg = _bufferSum / _numSamples;
+    // 2. Moving Average Filter (Exponential Smoothing)
+    // We use exponential smoothing as the primary filter for a 4-20mA stable signal
+    _filteredADC = (_alpha * currentADC) + ((1.0f - _alpha) * _filteredADC);
 
-    // 3. Exponential Smoothing
-    _filteredADC = (_alpha * movingAvg) + ((1.0f - _alpha) * _filteredADC);
+    // 3. Conversion Chain
+    float voltage = adcToVoltage(_filteredADC);
+    float pressureRaw = voltageToPressure(voltage, minV, maxV, maxBar);
+    
+    // Normalized calculation (0-1.0 over working range)
+    normalized = pressureRaw / workingMaxBar;
+    if (normalized > 1.0f) normalized = 1.0f;
+    if (normalized < 0.0f) normalized = 0.0f;
 
-    return getPSI();
+    // Accuracy Scaling: Map 0-1.0 (normalized) to Accuracy Range (e.g. 0.66V - 3.3V)
+    // This maps the used portion of the sensor to the full monitor/control window.
+    scaled3v3 = accuracyMinV + (normalized * (accuracyMaxV - accuracyMinV));
+
+    return pressureRaw;
 }
 
-float PressureSensor::adcToVoltage(int adcValue) {
-    // ESP32 ADC is 12-bit (0-4095)
-    // At 11dB attenuation, range is approx 0-3.3V
-    // Adding linear correction for ESP32 ADC non-linearity
-    if (adcValue < 1) return 0.0f;
-    float voltage = ((float)adcValue / 4095.0f) * 3.1f + 0.15f;
-    if (voltage > 3.3f) voltage = 3.3f;
-    if (voltage < 0.0f) voltage = 0.0f;
-    return voltage;
+float PressureSensor::adcToVoltage(float adcValue) {
+    // 12-bit ADC (0-4095) for 3.3V range
+    return (adcValue / 4095.0f) * 3.3f;
 }
 
 float PressureSensor::getRawVoltage() {
-    // This returns the voltage at the ADC pin
-    return adcToVoltage((int)_filteredADC);
+    return adcToVoltage(_filteredADC);
 }
 
-float PressureSensor::getPSI() {
-    float vAdc = getRawVoltage();
-    // Externally scaled 0-5V to 0-3.3V
-    // So V_sensor = V_adc * (5.0 / 3.3)
-    float vSensor = vAdc * (5.0f / 3.3f);
-
-    // Sensor: 1V = 0 PSI, 5V = 5000 PSI
-    // PSI = (V_sensor - 1.0) * (5000 / 4.0)
-    float psi = (vSensor - 1.0f) * 1250.0f;
-
-    if (psi < 0) psi = 0;
-    return psi;
+float PressureSensor::voltageToPressure(float voltage, float minV, float maxV, float maxBar) {
+    // Linear interpolation for 4-20mA signal
+    // pressure = ((V - Vmin) / (Vmax - Vmin)) * Pmax
+    float pressure = ((voltage - minV) / (maxV - minV)) * maxBar;
+    
+    // Clamping
+    if (pressure < 0) pressure = 0;
+    if (pressure > maxBar) pressure = maxBar;
+    
+    return pressure;
 }

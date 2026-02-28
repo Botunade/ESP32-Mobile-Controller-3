@@ -34,14 +34,22 @@ const int CONTROL_LOOP_MS = 50; // 20Hz PID loop (refined requirement)
 
 void loadSettings() {
     preferences.begin("pressure-ctrl", false);
-    settings.kp = preferences.getFloat("kp", 1.0f);
-    settings.ki = preferences.getFloat("ki", 0.1f);
-    settings.kd = preferences.getFloat("kd", 0.01f);
-    settings.setpoint = preferences.getFloat("setpoint", 50.0f);
+    settings.kp = preferences.getFloat("kp", 2.0f);
+    settings.ki = preferences.getFloat("ki", 0.5f);
+    settings.kd = preferences.getFloat("kd", 0.1f);
+    settings.setpoint = preferences.getFloat("sp", 1.0f); // default 1.0 BAR
     settings.minVoltage = preferences.getFloat("minV", 0.0f);
-    settings.maxVoltage = preferences.getFloat("maxV", 3.3f);
-    settings.tankVolume = preferences.getInt("tankVol", 100);
-    settings.tankHeight = preferences.getFloat("tankHeight", 2.0f);
+    settings.maxVoltage = preferences.getFloat("maxV", 3.1f);
+    settings.tankVolume = preferences.getInt("tankVol", 5); // Default 5L
+    
+    // 4-20mA Sensor Defaults (117 ohm resistor)
+    settings.sensorMinV = preferences.getFloat("sMinV", 0.468f);
+    settings.sensorMaxV = preferences.getFloat("sMaxV", 2.34f);
+    settings.sensorMaxBar = preferences.getFloat("sMaxP", 12.0f);
+    settings.workingMaxBar = preferences.getFloat("wMaxP", 2.0f);
+    settings.accuracyMinV = preferences.getFloat("aMinV", 0.66f);
+    settings.accuracyMaxV = preferences.getFloat("aMaxV", 3.3f);
+    settings.safetyAllowance = preferences.getFloat("safeAllow", 0.5f);
     String ssid = preferences.getString("wifiSSID", "");
     strncpy(settings.wifiSSID, ssid.c_str(), sizeof(settings.wifiSSID) - 1);
     settings.wifiSSID[sizeof(settings.wifiSSID) - 1] = '\0';
@@ -60,7 +68,13 @@ void saveSettings() {
     preferences.putFloat("minV", settings.minVoltage);
     preferences.putFloat("maxV", settings.maxVoltage);
     preferences.putInt("tankVol", settings.tankVolume);
-    preferences.putFloat("tankHeight", settings.tankHeight);
+    preferences.putFloat("sMinV", settings.sensorMinV);
+    preferences.putFloat("sMaxV", settings.sensorMaxV);
+    preferences.putFloat("sMaxP", settings.sensorMaxBar);
+    preferences.putFloat("wMaxP", settings.workingMaxBar);
+    preferences.putFloat("aMinV", settings.accuracyMinV);
+    preferences.putFloat("aMaxV", settings.accuracyMaxV);
+    preferences.putFloat("safeAllow", settings.safetyAllowance);
     preferences.putString("wifiSSID", settings.wifiSSID);
     preferences.putString("wifiPass", settings.wifiPassword);
     preferences.end();
@@ -109,22 +123,29 @@ void loop() {
     if (now - lastControlLoop >= CONTROL_LOOP_MS) {
         lastControlLoop = now;
 
-        // 1. Read & Filter ADC (inside readPressure)
-        // 2. Convert to voltage & PSI (inside readPressure)
-        state.pressure = sensor.readPressure();
+        // 1. Read & Filter (modular 4-20mA logic)
+        state.pressure = sensor.readPressure(
+            settings.sensorMinV, 
+            settings.sensorMaxV, 
+            settings.sensorMaxBar, 
+            settings.workingMaxBar,
+            settings.accuracyMinV,
+            settings.accuracyMaxV,
+            state.normalizedPressure,
+            state.scaledTo3v3
+        );
 
-        // Update pressure percentage (based on 0-150 PSI range)
-        state.pressurePercent = (state.pressure / 150.0f) * 100.0f;
+        // Update pressure percentage (based on working range)
+        state.pressurePercent = state.normalizedPressure * 100.0f;
+        
+        // Air Volume = Pressure (BAR) * Tank Volume (L)
+        state.airVolume = state.pressure * (float)settings.tankVolume;
 
-        // 3. Compute PID (Normalized to 0-3.3V)
+        // 3. Compute PID (BAR units)
         pid.setTunings(settings.kp, settings.ki, settings.kd);
         pid.setOutputLimits(settings.minVoltage, settings.maxVoltage);
 
-        // Map PSI setpoint to Voltage for PID
-        float targetVoltage = (((settings.setpoint / 1250.0f) + 1.0f) * (3.3f / 5.0f));
-        float currentVoltage = sensor.getRawVoltage();
-
-        state.pidOutput = pid.compute(targetVoltage, currentVoltage);
+        state.pidOutput = pid.compute(settings.setpoint, state.pressure);
 
         // 4. Map to PWM 0-1023
         if (state.systemActive) {
@@ -137,7 +158,7 @@ void loop() {
 
         // 5. Soft Ramp Limiting
         static float currentPWMValue = 0;
-        const float maxStep = 50.0f; // Limit change to 50 units per 50ms
+        const float maxStep = 50.0f;
         if (state.dacValue > currentPWMValue + maxStep) {
             currentPWMValue += maxStep;
         } else if (state.dacValue < currentPWMValue - maxStep) {
@@ -146,16 +167,20 @@ void loop() {
             currentPWMValue = state.dacValue;
         }
 
-        // 6. Write to GPIO25 via LEDC
+        // 6. Write to GPIO25
         ledcWrite(0, (uint32_t)currentPWMValue);
 
-        // Calculate control voltage for display
         state.dacValue = currentPWMValue;
         state.controlVoltage = (state.dacValue / 1023.0f) * 3.3f;
         state.sensorVoltage = sensor.getRawVoltage();
         state.rawADC = sensor.getFilteredADC();
 
-        // Diagnostic flag (Throttled warning)
+        // 7. Safety Bypass: Solenoid opens if pressure > setpoint + safetyAllowance
+        if (state.pressure > settings.setpoint + settings.safetyAllowance) {
+            state.solenoidState = true; 
+        }
+
+        // Diagnostic flag
         state.isStatic = pid.isStatic();
         static unsigned long lastPidWarn = 0;
         if (state.systemActive && state.isStatic && (now - lastPidWarn > 5000)) {

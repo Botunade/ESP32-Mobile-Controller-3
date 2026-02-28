@@ -292,7 +292,7 @@ const char* DASHBOARD_HTML = R"=====(
                 <h3 style="margin-bottom: 0.25rem;">Solenoid Valve Override</h3>
                 <p style="font-size: 0.875rem; color: var(--text-muted);">Manually trigger the relay to open/close the valve.</p>
             </div>
-            <button id="btn-solenoid" class="btn-update" data-state="off" style="width: auto; background: var(--border); color: var(--text-main); margin-top: 0;" onclick="toggleSolenoid()">
+            <button id="btn-solenoid" class="btn-solenoid-toggle" data-state="off" style="width: auto; background: var(--border); color: var(--text-main); margin-top: 0; padding: 0.75rem 1.5rem; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-weight: 600;" onclick="toggleSolenoid()">
                 VALVE OFF
             </button>
         </div>
@@ -307,14 +307,21 @@ const char* DASHBOARD_HTML = R"=====(
                         <span class="metric-label">Pressure</span>
                         <div>
                             <span id="pressure" class="metric-value" style="color: var(--primary);">0.0</span>
-                            <span class="metric-unit">PSI</span>
+                            <span class="metric-unit">BAR</span>
                         </div>
                     </div>
                     <div class="metric-item">
                         <span class="metric-label">Target Setpoint</span>
                         <div>
                             <span id="setpoint-display" class="metric-value">0.0</span>
-                            <span class="metric-unit">PSI</span>
+                            <span class="metric-unit">BAR</span>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Air Volume</span>
+                        <div>
+                            <span id="airVolume" class="metric-value" style="color: #6366f1;">0.0</span>
+                            <span class="metric-unit">L</span>
                         </div>
                     </div>
                     <div class="metric-item">
@@ -359,6 +366,13 @@ const char* DASHBOARD_HTML = R"=====(
                             <span class="metric-unit">V</span>
                         </div>
                     </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Resampled Scale</span>
+                        <div>
+                            <span id="scaled3v3" class="metric-value" style="color: #10b981; font-weight: bold; font-size: 1rem;">0.00</span>
+                            <span class="metric-unit">V (0.66-3.3)</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -376,12 +390,12 @@ const char* DASHBOARD_HTML = R"=====(
             <div class="card-header" style="color: var(--primary);">System Calibration Rules</div>
             <div style="font-size: 0.85rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div>
-                    <p><strong>ADC Correction:</strong> V_adc = (ADC/4095) * 3.1 + 0.15</p>
-                    <p><strong>Sensor Scale:</strong> V_sensor = V_adc * (5.0 / 3.3)</p>
+                    <p><strong>ADC Logic:</strong> V = (ADC/4095) * 3.3</p>
+                    <p><strong>BAR Mapping:</strong> (V - Vmin) * (MaxBAR / (Vmax - Vmin))</p>
                 </div>
                 <div>
-                    <p><strong>PSI Conversion:</strong> (V_sensor - 1.0) * 1250</p>
-                    <p><strong>DAC Range:</strong> 0V - 3.3V (10-bit resolution)</p>
+                    <p><strong>Safety:</strong> Bypass Open at Setpoint + 0.5 BAR</p>
+                    <p><strong>Limit:</strong> Tank max 8L / Sensor max 12 BAR</p>
                 </div>
             </div>
         </div>
@@ -393,17 +407,12 @@ const char* DASHBOARD_HTML = R"=====(
             <div class="config-summary">
                 <div><span class="config-label">Active SSID:</span> <span id="active-ssid">-</span></div>
                 <div><span class="config-label">Tank Size:</span> <span id="active-tank">-</span></div>
-                <div><span class="config-label">Tank Height:</span> <span id="active-height">-</span></div>
             </div>
 
             <div class="settings-grid">
                 <div class="input-group">
-                    <label for="tankVol">Tank Size (L)</label>
-                    <input type="number" id="tankVol" step="1">
-                </div>
-                <div class="input-group">
-                    <label for="tankHeight">Tank Height (m)</label>
-                    <input type="number" id="tankHeight" step="0.1">
+                    <label for="tankVol">Tank Size (L, Max 8)</label>
+                    <input type="number" id="tankVol" step="0.1" max="8">
                 </div>
                 <div class="input-group">
                     <label for="kp">Proportional (Kp)</label>
@@ -419,17 +428,54 @@ const char* DASHBOARD_HTML = R"=====(
                     <input type="number" id="kd" step="0.01">
                 </div>
                 <div class="input-group">
-                    <label for="setpoint">Setpoint (PSI)</label>
-                    <input type="number" id="setpoint" step="1">
+                    <label for="setpoint">Setpoint (BAR)</label>
+                    <input type="number" id="setpoint" step="0.1" max="12">
                 </div>
                 <div class="input-group">
-                    <label for="minV">Min Voltage (V)</label>
+                    <label for="safeAllow">Safety Allowance (BAR)</label>
+                    <input type="number" id="safeAllow" step="0.1" value="0.5">
+                </div>
+                <div class="input-group">
+                    <label for="minV">DAC Min (V)</label>
                     <input type="number" id="minV" step="0.1">
                 </div>
                 <div class="input-group">
-                    <label for="maxV">Max Voltage (V)</label>
+                    <label for="maxV">DAC Max (V)</label>
                     <input type="number" id="maxV" step="0.1">
                 </div>
+            </div>
+
+            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border);">
+            <div class="card-header">Sensor Scaling (4-20mA / 117Ω)</div>
+            <div class="settings-grid">
+                <div class="input-group">
+                    <label for="sMinV">Sensor Min (V)</label>
+                    <input type="number" id="sMinV" step="0.001">
+                </div>
+                <div class="input-group">
+                    <label for="sMaxV">Sensor Max (V)</label>
+                    <input type="number" id="sMaxV" step="0.001">
+                </div>
+                <div class="input-group">
+                    <label for="sMaxP">Sensor Full Scale (BAR)</label>
+                    <input type="number" id="sMaxP" step="0.1">
+                </div>
+                <div class="input-group">
+                    <label for="wMaxP">Working Max (BAR)</label>
+                    <input type="number" id="wMaxP" step="0.1">
+                </div>
+                <div class="input-group">
+                    <label for="aMinV">Acc. Scale Min (V)</label>
+                    <input type="number" id="aMinV" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label for="aMaxV">Acc. Scale Max (V)</label>
+                    <input type="number" id="aMaxV" step="0.01">
+                </div>
+            </div>
+            <div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); display: flex; justify-content: space-around; font-size: 0.9rem;">
+                <div><span style="color: var(--text-muted);">Live Raw:</span> <span id="liveSensorV" style="font-weight: bold; color: var(--primary);">0.00</span> V</div>
+                <div><span style="color: var(--text-muted);">Live Acc:</span> <span id="liveScaledV" style="font-weight: bold; color: #10b981;">0.00</span> V</div>
             </div>
             
             <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border);">
@@ -445,7 +491,7 @@ const char* DASHBOARD_HTML = R"=====(
                 </div>
             </div>
             
-            <button class="btn-update" onclick="updateSettings()">Apply Configuration</button>
+            <button id="btn-save-settings" class="btn-update" onclick="updateSettings()">Apply Configuration</button>
         </div>
     </div>
 
@@ -454,6 +500,7 @@ const char* DASHBOARD_HTML = R"=====(
         const maxDataPoints = 60; // 30 seconds at 500ms intervals
         const dataHistory = Array(maxDataPoints).fill(null);
         const setpointHistory = Array(maxDataPoints).fill(null);
+        const workingMaxHistory = Array(maxDataPoints).fill(null);
         const labels = Array(maxDataPoints).fill('');
 
         function initChart() {
@@ -486,6 +533,16 @@ const char* DASHBOARD_HTML = R"=====(
                             borderColor: '#cbd5e1',
                             borderWidth: 2,
                             borderDash: [5, 5],
+                            fill: false,
+                            tension: 0,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Working Max',
+                            data: workingMaxHistory,
+                            borderColor: '#ef4444',
+                            borderDash: [5, 5],
+                            borderWidth: 1.5,
                             fill: false,
                             tension: 0,
                             pointRadius: 0
@@ -532,15 +589,19 @@ const char* DASHBOARD_HTML = R"=====(
                 const data = await response.json();
                 
                 // Update text elements
-                document.getElementById('pressure').innerText = data.pressure.toFixed(1);
+                document.getElementById('pressure').innerText = data.pressure.toFixed(2);
                 document.getElementById('voltage').innerText = data.voltage.toFixed(2);
-                document.getElementById('setpoint-display').innerText = data.setpoint.toFixed(1);
+                document.getElementById('setpoint-display').innerText = data.setpoint.toFixed(2);
+                document.getElementById('airVolume').innerText = (data.airVolume || 0).toFixed(2);
                 
                 // Diagnostics
                 document.getElementById('rawADC').innerText = Math.round(data.rawADC);
                 document.getElementById('sensorV').innerText = data.sensorV.toFixed(2);
                 document.getElementById('dacValue').innerText = data.dacValue;
                 document.getElementById('pidOut').innerText = data.pidOut.toFixed(2);
+                document.getElementById('scaled3v3').innerText = (data.scaled3v3 || 0).toFixed(2);
+                if (document.getElementById('liveSensorV')) document.getElementById('liveSensorV').innerText = data.sensorV.toFixed(2);
+                if (document.getElementById('liveScaledV')) document.getElementById('liveScaledV').innerText = (data.scaled3v3 || 0).toFixed(2);
                 
                 // Update Status Badge
                 const statusEl = document.getElementById('status');
@@ -574,25 +635,33 @@ const char* DASHBOARD_HTML = R"=====(
                 // Update Chart Arrays
                 dataHistory.push(data.pressure);
                 setpointHistory.push(data.setpoint);
+                workingMaxHistory.push(data.wMaxP || 0);
                 labels.push('');
                 
                 if (dataHistory.length > maxDataPoints) {
                     dataHistory.shift();
                     setpointHistory.shift();
+                    workingMaxHistory.shift();
                     labels.shift();
                 }
-                chart.update();
+                chart.update('none');
 
                 // Populate Form (only if empty to not overwrite user typing)
                 if (!document.getElementById('tankVol').value) {
                     document.getElementById('tankVol').value = data.tankVol;
-                    document.getElementById('tankHeight').value = data.tankHeight;
                     document.getElementById('kp').value = data.kp;
                     document.getElementById('ki').value = data.ki;
                     document.getElementById('kd').value = data.kd;
                     document.getElementById('setpoint').value = data.setpoint;
+                    document.getElementById('safeAllow').value = data.safeAllow;
                     document.getElementById('minV').value = data.minV;
                     document.getElementById('maxV').value = data.maxV;
+                    document.getElementById('sMinV').value = data.sMinV;
+                    document.getElementById('sMaxV').value = data.sMaxV;
+                    document.getElementById('sMaxP').value = data.sMaxP;
+                    document.getElementById('wMaxP').value = data.wMaxP;
+                    document.getElementById('aMinV').value = data.aMinV;
+                    document.getElementById('aMaxV').value = data.aMaxV;
                     document.getElementById('wifiSSID').value = data.wifiSSID || '';
                     document.getElementById('wifiPassword').value = data.wifiPassword || '';
                 }
@@ -600,7 +669,6 @@ const char* DASHBOARD_HTML = R"=====(
                 // Update configuration summary
                 document.getElementById('active-ssid').innerText = data.wifiSSID || 'NONE';
                 document.getElementById('active-tank').innerText = data.tankVol + " L";
-                document.getElementById('active-height').innerText = data.tankHeight + " m";
             } catch (e) { console.error('Data fetch failed', e); }
         }
 
@@ -635,7 +703,7 @@ const char* DASHBOARD_HTML = R"=====(
         }
 
         async function updateSettings() {
-            const btn = document.querySelector('.btn-update');
+            const btn = document.getElementById('btn-save-settings');
             const originalText = btn.innerText;
             btn.innerText = 'Saving...';
             btn.style.opacity = '0.7';
@@ -643,13 +711,19 @@ const char* DASHBOARD_HTML = R"=====(
             try {
                 const params = new URLSearchParams({
                     tankVol: document.getElementById('tankVol').value,
-                    tankHeight: document.getElementById('tankHeight').value,
                     kp: document.getElementById('kp').value,
                     ki: document.getElementById('ki').value,
                     kd: document.getElementById('kd').value,
                     setpoint: document.getElementById('setpoint').value,
+                    safeAllow: document.getElementById('safeAllow').value,
                     minV: document.getElementById('minV').value,
                     maxV: document.getElementById('maxV').value,
+                    sMinV: document.getElementById('sMinV').value,
+                    sMaxV: document.getElementById('sMaxV').value,
+                    sMaxP: document.getElementById('sMaxP').value,
+                    wMaxP: document.getElementById('wMaxP').value,
+                    aMinV: document.getElementById('aMinV').value,
+                    aMaxV: document.getElementById('aMaxV').value,
                     wifiSSID: document.getElementById('wifiSSID').value,
                     wifiPassword: document.getElementById('wifiPassword').value
                 });
@@ -777,14 +851,22 @@ void PressureWebServer::handleData() {
     doc["isStatic"] = _state->isStatic;
     doc["active"] = _state->systemActive;
     doc["solenoid"] = _state->solenoidState;
+    doc["airVolume"] = _state->airVolume;
+    doc["scaled3v3"] = _state->scaledTo3v3;
     doc["tankVol"] = _settings->tankVolume;
-    doc["tankHeight"] = _settings->tankHeight;
     doc["kp"] = _settings->kp;
     doc["ki"] = _settings->ki;
     doc["kd"] = _settings->kd;
     doc["setpoint"] = _settings->setpoint;
+    doc["safeAllow"] = _settings->safetyAllowance;
     doc["minV"] = _settings->minVoltage;    
     doc["maxV"] = _settings->maxVoltage;
+    doc["sMinV"] = _settings->sensorMinV;
+    doc["sMaxV"] = _settings->sensorMaxV;
+    doc["sMaxP"] = _settings->sensorMaxBar;
+    doc["wMaxP"] = _settings->workingMaxBar;
+    doc["aMinV"] = _settings->accuracyMinV;
+    doc["aMaxV"] = _settings->accuracyMaxV;
     doc["wifiSSID"] = _settings->wifiSSID;
 
     String json;
@@ -794,7 +876,13 @@ void PressureWebServer::handleData() {
 
 void PressureWebServer::handleUpdate() {
     if (_server.hasArg("tankVol")) _settings->tankVolume = _server.arg("tankVol").toInt();
-    if (_server.hasArg("tankHeight")) _settings->tankHeight = _server.arg("tankHeight").toFloat();
+    if (_server.hasArg("sMinV")) _settings->sensorMinV = _server.arg("sMinV").toFloat();
+    if (_server.hasArg("sMaxV")) _settings->sensorMaxV = _server.arg("sMaxV").toFloat();
+    if (_server.hasArg("sMaxP")) _settings->sensorMaxBar = _server.arg("sMaxP").toFloat();
+    if (_server.hasArg("wMaxP")) _settings->workingMaxBar = _server.arg("wMaxP").toFloat();
+    if (_server.hasArg("aMinV")) _settings->accuracyMinV = _server.arg("aMinV").toFloat();
+    if (_server.hasArg("aMaxV")) _settings->accuracyMaxV = _server.arg("aMaxV").toFloat();
+
     if (_server.hasArg("solenoid")) {
         _state->solenoidState = (_server.arg("solenoid") == "1");
         Serial.print("Local Solenoid Command: ");
@@ -804,6 +892,7 @@ void PressureWebServer::handleUpdate() {
     if (_server.hasArg("ki")) _settings->ki = _server.arg("ki").toFloat();
     if (_server.hasArg("kd")) _settings->kd = _server.arg("kd").toFloat();
     if (_server.hasArg("setpoint")) _settings->setpoint = _server.arg("setpoint").toFloat();
+    if (_server.hasArg("safeAllow")) _settings->safetyAllowance = _server.arg("safeAllow").toFloat();
     if (_server.hasArg("minV")) _settings->minVoltage = _server.arg("minV").toFloat();
     if (_server.hasArg("maxV")) _settings->maxVoltage = _server.arg("maxV").toFloat();
     
@@ -817,6 +906,10 @@ void PressureWebServer::handleUpdate() {
         strncpy(_settings->wifiPassword, pass.c_str(), sizeof(_settings->wifiPassword) - 1);
         _settings->wifiPassword[sizeof(_settings->wifiPassword) - 1] = '\0';
     }
+
+    // PERSISTENCE FIX: Save immediately when web dashboard updates settings
+    extern void saveSettings();
+    saveSettings();
 
     _server.send(200, "text/plain", "OK");
 }

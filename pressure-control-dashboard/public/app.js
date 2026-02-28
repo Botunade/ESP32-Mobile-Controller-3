@@ -38,14 +38,63 @@ const valVoltage = document.getElementById('valVoltage');
 const valPid = document.getElementById('valPid');
 const barPressure = document.getElementById('barPressure');
 const barVoltage = document.getElementById('barVoltage');
+const valAirVolume = document.getElementById('valAirVolume');
+
+// Chart Setup
+const ctx = document.getElementById('pressureChart').getContext('2d');
+const pressureChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [{
+            label: 'Pressure (BAR)',
+            data: [],
+            borderColor: '#0ea5e9',
+            backgroundColor: 'rgba(14, 165, 233, 0.1)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 0
+        }, {
+            label: 'Working Max',
+            data: [],
+            borderColor: '#ef4444',
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { display: false },
+            y: {
+                beginAtZero: true,
+                max: 12,
+                grid: { color: '#f1f5f9' },
+                ticks: { color: '#64748b' }
+            }
+        },
+        animation: false
+    }
+});
 
 // DOM Elements - Settings Form
 const inputKp = document.getElementById('kp');
 const inputKi = document.getElementById('ki');
 const inputKd = document.getElementById('kd');
 const inputSetpoint = document.getElementById('setpoint');
+const inputSafetyAllowance = document.getElementById('safetyAllowance');
 const inputMinVoltage = document.getElementById('minVoltage');
 const inputMaxVoltage = document.getElementById('maxVoltage');
+const inputSensorMinV = document.getElementById('sensorMinV');
+const inputSensorMaxV = document.getElementById('sensorMaxV');
+const inputSensorMaxBar = document.getElementById('sensorMaxBar');
+const inputWorkingMaxBar = document.getElementById('workingMaxBar');
+const inputAccuracyMinV = document.getElementById('accuracyMinV');
+const inputAccuracyMaxV = document.getElementById('accuracyMaxV');
 const syncConfigBadge = document.getElementById('syncConfigBadge');
 const btnSaveConfig = document.getElementById('btnSaveConfig');
 const savingOverlay = document.getElementById('savingOverlay');
@@ -58,7 +107,6 @@ const solenoidIndicator = document.getElementById('solenoidIndicator');
 const btnRefreshSettings = document.getElementById('btnRefreshSettings');
 
 const inputTankVolume = document.getElementById('tankVolume');
-const inputTankHeight = document.getElementById('tankHeight');
 
 // Format helpers
 const _f = (num, decimals = 2) => Number(num).toFixed(decimals);
@@ -94,10 +142,57 @@ onValue(stateRef, (snapshot) => {
     const now = new Date();
     elLastUpdated.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+    // --- CRITICAL STATUS UPDATES (Moved up for reliability) ---
+    if (data.systemActive !== undefined) {
+        if (data.systemActive) {
+            elSystemActiveBadge.innerText = 'SYSTEM RUNNING';
+            elSystemActiveBadge.className = 'px-4 py-2 rounded-lg text-sm font-bold tracking-wide bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-inner transition-colors duration-300';
+        } else {
+            elSystemActiveBadge.innerText = 'SYSTEM IDLE';
+            elSystemActiveBadge.className = 'px-4 py-2 rounded-lg text-sm font-bold tracking-wide bg-slate-100 text-slate-500 border border-slate-200 shadow-inner transition-colors duration-300';
+        }
+    }
+
+    if (data.solenoidState !== undefined) {
+        if (data.solenoidState) {
+            btnToggleSolenoid.innerHTML = `<div id="solenoidIndicator" class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div> SOLENOID: ON`;
+            btnToggleSolenoid.className = 'px-6 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg shadow-sm border border-emerald-200 transition-all flex items-center gap-2';
+            btnToggleSolenoid.setAttribute('data-state', 'on');
+        } else {
+            btnToggleSolenoid.innerHTML = `<div id="solenoidIndicator" class="w-3 h-3 rounded-full bg-slate-400"></div> SOLENOID: OFF`;
+            btnToggleSolenoid.className = 'px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg shadow-sm border border-slate-200 transition-all flex items-center gap-2';
+            btnToggleSolenoid.setAttribute('data-state', 'off');
+        }
+    }
+    // --------------------------------------------------------
+
     // Update Readings
     if (data.pressure !== undefined) {
-        valPressure.innerText = _f(data.pressure, 1);
+        valPressure.innerText = _f(data.pressure, 2);
         barPressure.style.width = `${Math.min(100, Math.max(0, data.pressurePercent || 0))}%`;
+
+        // Update Chart
+        const nowStr = new Date().toLocaleTimeString();
+        pressureChart.data.labels.push(nowStr);
+        pressureChart.data.datasets[0].data.push(data.pressure);
+        pressureChart.data.datasets[1].data.push(data.workingMaxBar || 0);
+        if (pressureChart.data.labels.length > 50) {
+            pressureChart.data.labels.shift();
+            pressureChart.data.datasets[0].data.shift();
+            pressureChart.data.datasets[1].data.shift();
+        }
+        pressureChart.update();
+    }
+
+    if (data.airVolume !== undefined) {
+        valAirVolume.innerText = _f(data.airVolume, 2);
+    }
+
+    if (data.sensorVoltage !== undefined) {
+        if (document.getElementById('liveSensorV')) document.getElementById('liveSensorV').innerText = _f(data.sensorVoltage, 2);
+    }
+    if (data.scaledTo3v3 !== undefined) {
+        if (document.getElementById('liveScaledV')) document.getElementById('liveScaledV').innerText = _f(data.scaledTo3v3, 2);
     }
 
     if (data.controlVoltage !== undefined) {
@@ -116,26 +211,6 @@ onValue(stateRef, (snapshot) => {
     } else {
         elStaticWarning.classList.add('hidden');
     }
-
-    // System State Badge
-    if (data.systemActive) {
-        elSystemActiveBadge.innerText = 'SYSTEM RUNNING';
-        elSystemActiveBadge.className = 'px-4 py-2 rounded-lg text-sm font-bold tracking-wide bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-inner transition-colors duration-300';
-    } else {
-        elSystemActiveBadge.innerText = 'SYSTEM IDLE';
-        elSystemActiveBadge.className = 'px-4 py-2 rounded-lg text-sm font-bold tracking-wide bg-slate-100 text-slate-500 border border-slate-200 shadow-inner transition-colors duration-300';
-    }
-
-    // Solenoid Toggle Button State Update
-    if (data.solenoidState) {
-        btnToggleSolenoid.innerHTML = `<div id="solenoidIndicator" class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div> SOLENOID: ON`;
-        btnToggleSolenoid.className = 'px-6 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg shadow-sm border border-emerald-200 transition-all flex items-center gap-2';
-        btnToggleSolenoid.setAttribute('data-state', 'on');
-    } else {
-        btnToggleSolenoid.innerHTML = `<div id="solenoidIndicator" class="w-3 h-3 rounded-full bg-slate-400"></div> SOLENOID: OFF`;
-        btnToggleSolenoid.className = 'px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg shadow-sm border border-slate-200 transition-all flex items-center gap-2';
-        btnToggleSolenoid.setAttribute('data-state', 'off');
-    }
 });
 
 // Settings Monitor (One-time load or manual refresh)
@@ -151,13 +226,19 @@ function fetchSettings() {
             inputKi.value = data.ki || '';
             inputKd.value = data.kd || '';
             inputSetpoint.value = data.setpoint || '';
+            inputSafetyAllowance.value = data.safetyAllowance || '0.5';
             inputMinVoltage.value = data.minVoltage || '';
             inputMaxVoltage.value = data.maxVoltage || '';
             inputTankVolume.value = data.tankVolume || '';
-            inputTankHeight.value = data.tankHeight || '';
+            inputSensorMinV.value = data.sensorMinV || '';
+            inputSensorMaxV.value = data.sensorMaxV || '';
+            inputSensorMaxBar.value = data.sensorMaxBar || '';
+            inputWorkingMaxBar.value = data.workingMaxBar || '';
+            inputAccuracyMinV.value = data.accuracyMinV || '';
+            inputAccuracyMaxV.value = data.accuracyMaxV || '';
 
             // Also update the active setpoint display
-            if (data.setpoint !== undefined) valSetpoint.innerText = _f(data.setpoint, 1);
+            if (data.setpoint !== undefined) valSetpoint.innerText = _f(data.setpoint, 2);
 
             syncConfigBadge.innerText = "Synced";
             syncConfigBadge.className = "text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200";
@@ -197,10 +278,16 @@ btnSaveConfig.addEventListener('click', async () => {
         ki: parseFloat(inputKi.value) || 0,
         kd: parseFloat(inputKd.value) || 0,
         setpoint: parseFloat(inputSetpoint.value) || 0,
+        safetyAllowance: parseFloat(inputSafetyAllowance.value) || 0.5,
         minVoltage: parseFloat(inputMinVoltage.value) || 0,
         maxVoltage: parseFloat(inputMaxVoltage.value) || 0,
         tankVolume: parseFloat(inputTankVolume.value) || 0,
-        tankHeight: parseFloat(inputTankHeight.value) || 0
+        sensorMinV: parseFloat(inputSensorMinV.value) || 0,
+        sensorMaxV: parseFloat(inputSensorMaxV.value) || 0,
+        sensorMaxBar: parseFloat(inputSensorMaxBar.value) || 0,
+        workingMaxBar: parseFloat(inputWorkingMaxBar.value) || 0,
+        accuracyMinV: parseFloat(inputAccuracyMinV.value) || 0,
+        accuracyMaxV: parseFloat(inputAccuracyMaxV.value) || 0
     };
 
     try {
@@ -210,7 +297,7 @@ btnSaveConfig.addEventListener('click', async () => {
         await set(ref(db, 'devices/esp32_controller_1/commands/update_settings'), true);
 
         // Update local display
-        valSetpoint.innerText = _f(newSettings.setpoint, 1);
+        valSetpoint.innerText = _f(newSettings.setpoint, 2);
 
         syncConfigBadge.innerText = "Synced";
         syncConfigBadge.className = "text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200";

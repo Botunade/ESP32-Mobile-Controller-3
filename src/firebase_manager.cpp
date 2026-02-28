@@ -67,6 +67,8 @@ void FirebaseManager::uploadState() {
     FirebaseJson json;
     json.set("pressure", _state->pressure);
     json.set("pressurePercent", _state->pressurePercent);
+    json.set("normalizedPressure", _state->normalizedPressure);
+    json.set("scaledTo3v3", _state->scaledTo3v3);
     json.set("controlVoltage", _state->controlVoltage);
     json.set("pidOutput", _state->pidOutput);
     json.set("dacValue", _state->dacValue);
@@ -74,9 +76,15 @@ void FirebaseManager::uploadState() {
     json.set("systemActive", _state->systemActive);
     json.set("solenoidState", _state->solenoidState);
     json.set("tankVolume", _settings->tankVolume);
-    json.set("tankHeight", _settings->tankHeight);
+    json.set("airVolume", _state->airVolume);
+    json.set("safetyAllowance", _settings->safetyAllowance);
     
     if (Firebase.RTDB.updateNode(&fbdo, basePath.c_str(), &json)) {
+        static unsigned long lastNotify = 0;
+        if (millis() - lastNotify > 10000) {
+            Serial.printf("State synced to cloud (P:%.2f, SOL:%d)\n", _state->pressure, _state->solenoidState);
+            lastNotify = millis();
+        }
         static bool firstSync = true;
         if (firstSync) {
             Serial.println(">> Database Connection Established. Monitoring Cloud Commands...");
@@ -130,6 +138,13 @@ void FirebaseManager::checkCommands() {
             uploadState(); // Immediate sync back
         }
     }
+
+    // Periodic state upload (every 2 seconds)
+    static unsigned long lastUpload = 0;
+    if (millis() - lastUpload > 2000) {
+        lastUpload = millis();
+        uploadState();
+    }
 }
 
 void FirebaseManager::downloadSettings() {
@@ -160,8 +175,26 @@ void FirebaseManager::downloadSettings() {
         json.get(jsonData, "tankVolume");
         if (jsonData.success) _settings->tankVolume = jsonData.intValue;
 
-        json.get(jsonData, "tankHeight");
-        if (jsonData.success) _settings->tankHeight = jsonData.doubleValue;
+        json.get(jsonData, "sensorMinV");
+        if (jsonData.success) _settings->sensorMinV = jsonData.doubleValue;
+        
+        json.get(jsonData, "sensorMaxV");
+        if (jsonData.success) _settings->sensorMaxV = jsonData.doubleValue;
+        
+        json.get(jsonData, "sensorMaxBar");
+        if (jsonData.success) _settings->sensorMaxBar = jsonData.doubleValue;
+        
+        json.get(jsonData, "workingMaxBar");
+        if (jsonData.success) _settings->workingMaxBar = jsonData.doubleValue;
+
+        json.get(jsonData, "accuracyMinV");
+        if (jsonData.success) _settings->accuracyMinV = jsonData.doubleValue;
+
+        json.get(jsonData, "accuracyMaxV");
+        if (jsonData.success) _settings->accuracyMaxV = jsonData.doubleValue;
+
+        json.get(jsonData, "safetyAllowance");
+        if (jsonData.success) _settings->safetyAllowance = jsonData.doubleValue;
         
         Serial.println("Settings downloaded from Firebase.");
     } else {
