@@ -74,6 +74,7 @@ void FirebaseManager::uploadState() {
     json.set("systemActive", _state->systemActive);
     json.set("solenoidState", _state->solenoidState);
     json.set("tankVolume", _settings->tankVolume);
+    json.set("tankHeight", _settings->tankHeight);
     
     if (Firebase.RTDB.updateNode(&fbdo, basePath.c_str(), &json)) {
         static bool firstSync = true;
@@ -106,6 +107,7 @@ void FirebaseManager::checkCommands() {
             Serial.println("Cloud command received: start_system");
             _state->systemActive = true;
             Firebase.RTDB.setBool(&fbdo, startPath.c_str(), false);
+            uploadState(); // Immediate sync back
         }
     }
     
@@ -115,6 +117,7 @@ void FirebaseManager::checkCommands() {
             Serial.println("Cloud command received: stop_system");
             _state->systemActive = false;
             Firebase.RTDB.setBool(&fbdo, stopPath.c_str(), false);
+            uploadState(); // Immediate sync back
         }
     }
 
@@ -124,6 +127,7 @@ void FirebaseManager::checkCommands() {
             Serial.println("Cloud command received: toggle_solenoid");
             _state->solenoidState = !_state->solenoidState;
             Firebase.RTDB.setBool(&fbdo, solPath.c_str(), false);
+            uploadState(); // Immediate sync back
         }
     }
 }
@@ -155,6 +159,9 @@ void FirebaseManager::downloadSettings() {
         
         json.get(jsonData, "tankVolume");
         if (jsonData.success) _settings->tankVolume = jsonData.intValue;
+
+        json.get(jsonData, "tankHeight");
+        if (jsonData.success) _settings->tankHeight = jsonData.doubleValue;
         
         Serial.println("Settings downloaded from Firebase.");
     } else {

@@ -15,6 +15,7 @@ struct SystemSettings {
     float minVoltage;
     float maxVoltage;
     int tankVolume;
+    float tankHeight;
     char wifiSSID[32];
     char wifiPassword[64];
 };

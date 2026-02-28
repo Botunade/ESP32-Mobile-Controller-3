@@ -41,6 +41,7 @@ void loadSettings() {
     settings.minVoltage = preferences.getFloat("minV", 0.0f);
     settings.maxVoltage = preferences.getFloat("maxV", 3.3f);
     settings.tankVolume = preferences.getInt("tankVol", 100);
+    settings.tankHeight = preferences.getFloat("tankHeight", 2.0f);
     String ssid = preferences.getString("wifiSSID", "");
     strncpy(settings.wifiSSID, ssid.c_str(), sizeof(settings.wifiSSID) - 1);
     settings.wifiSSID[sizeof(settings.wifiSSID) - 1] = '\0';
@@ -59,6 +60,7 @@ void saveSettings() {
     preferences.putFloat("minV", settings.minVoltage);
     preferences.putFloat("maxV", settings.maxVoltage);
     preferences.putInt("tankVol", settings.tankVolume);
+    preferences.putFloat("tankHeight", settings.tankHeight);
     preferences.putString("wifiSSID", settings.wifiSSID);
     preferences.putString("wifiPass", settings.wifiPassword);
     preferences.end();

@@ -393,12 +393,17 @@ const char* DASHBOARD_HTML = R"=====(
             <div class="config-summary">
                 <div><span class="config-label">Active SSID:</span> <span id="active-ssid">-</span></div>
                 <div><span class="config-label">Tank Size:</span> <span id="active-tank">-</span></div>
+                <div><span class="config-label">Tank Height:</span> <span id="active-height">-</span></div>
             </div>
 
             <div class="settings-grid">
                 <div class="input-group">
                     <label for="tankVol">Tank Size (L)</label>
                     <input type="number" id="tankVol" step="1">
+                </div>
+                <div class="input-group">
+                    <label for="tankHeight">Tank Height (m)</label>
+                    <input type="number" id="tankHeight" step="0.1">
                 </div>
                 <div class="input-group">
                     <label for="kp">Proportional (Kp)</label>
@@ -581,6 +586,7 @@ const char* DASHBOARD_HTML = R"=====(
                 // Populate Form (only if empty to not overwrite user typing)
                 if (!document.getElementById('tankVol').value) {
                     document.getElementById('tankVol').value = data.tankVol;
+                    document.getElementById('tankHeight').value = data.tankHeight;
                     document.getElementById('kp').value = data.kp;
                     document.getElementById('ki').value = data.ki;
                     document.getElementById('kd').value = data.kd;
@@ -594,6 +600,7 @@ const char* DASHBOARD_HTML = R"=====(
                 // Update configuration summary
                 document.getElementById('active-ssid').innerText = data.wifiSSID || 'NONE';
                 document.getElementById('active-tank').innerText = data.tankVol + " L";
+                document.getElementById('active-height').innerText = data.tankHeight + " m";
             } catch (e) { console.error('Data fetch failed', e); }
         }
 
@@ -636,6 +643,7 @@ const char* DASHBOARD_HTML = R"=====(
             try {
                 const params = new URLSearchParams({
                     tankVol: document.getElementById('tankVol').value,
+                    tankHeight: document.getElementById('tankHeight').value,
                     kp: document.getElementById('kp').value,
                     ki: document.getElementById('ki').value,
                     kd: document.getElementById('kd').value,
@@ -770,6 +778,7 @@ void PressureWebServer::handleData() {
     doc["active"] = _state->systemActive;
     doc["solenoid"] = _state->solenoidState;
     doc["tankVol"] = _settings->tankVolume;
+    doc["tankHeight"] = _settings->tankHeight;
     doc["kp"] = _settings->kp;
     doc["ki"] = _settings->ki;
     doc["kd"] = _settings->kd;
@@ -785,6 +794,7 @@ void PressureWebServer::handleData() {
 
 void PressureWebServer::handleUpdate() {
     if (_server.hasArg("tankVol")) _settings->tankVolume = _server.arg("tankVol").toInt();
+    if (_server.hasArg("tankHeight")) _settings->tankHeight = _server.arg("tankHeight").toFloat();
     if (_server.hasArg("solenoid")) {
         _state->solenoidState = (_server.arg("solenoid") == "1");
         Serial.print("Local Solenoid Command: ");
