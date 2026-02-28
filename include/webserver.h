@@ -8,39 +8,28 @@
 #include <ArduinoJson.h>
 
 struct SystemSettings {
-    // PID
     float kp;
     float ki;
     float kd;
-    int sampleTime;
-
-    // Pressure Control
     float setpoint;
-    float maxPressure;
-    int units; // 0: %, 1: PSI, 2: BAR
-
-    // Output
     float minVoltage;
     float maxVoltage;
-    float rampRate;
-    float calibrationFactor;
-
-    // Tank
     int tankVolume;
-
-    // Sensor Calibration
-    float lowVoltage;
-    float highVoltage;
+    char wifiSSID[32];
+    char wifiPassword[64];
 };
 
 struct SystemState {
     float pressure;
     float pressurePercent;
+    float sensorVoltage;
     float controlVoltage;
     float pidOutput;
     float dacValue;
+    float rawADC;
     bool isStatic;
     bool systemActive;
+    bool solenoidState;
 };
 
 class PressureWebServer {

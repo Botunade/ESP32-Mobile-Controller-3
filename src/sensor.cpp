@@ -26,8 +26,8 @@ void PressureSensor::begin() {
     _bufferSum = (float)initialRead * _numSamples;
 }
 
-float PressureSensor::readPressure(float lowV, float highV, float calFactor) {
-    // 1. Oversampling (>= 16 reads)
+float PressureSensor::readPressure() {
+    // 1. Oversampling
     long sum = 0;
     for (int i = 0; i < _numSamples; i++) {
         sum += analogRead(_pin);
@@ -44,35 +44,35 @@ float PressureSensor::readPressure(float lowV, float highV, float calFactor) {
     // 3. Exponential Smoothing
     _filteredADC = (_alpha * movingAvg) + ((1.0f - _alpha) * _filteredADC);
 
-    return getPressurePercent(lowV, highV, calFactor);
+    return getPSI();
 }
 
-float PressureSensor::adcToVoltage(float adcValue) {
+float PressureSensor::adcToVoltage(int adcValue) {
     // ESP32 ADC is 12-bit (0-4095)
     // At 11dB attenuation, range is approx 0-3.3V
-    // Applying linear correction for ESP32 ADC non-linearity (approximate)
+    // Adding linear correction for ESP32 ADC non-linearity
     if (adcValue < 1) return 0.0f;
-    float voltage = (adcValue / 4095.0f) * 3.1f + 0.15f;
+    float voltage = ((float)adcValue / 4095.0f) * 3.1f + 0.15f;
     if (voltage > 3.3f) voltage = 3.3f;
     if (voltage < 0.0f) voltage = 0.0f;
     return voltage;
 }
 
-float PressureSensor::getRawVoltage(float calFactor) {
-    // Apply voltage divider compensation using calibrationFactor
-    return adcToVoltage(_filteredADC) * calFactor;
+float PressureSensor::getRawVoltage() {
+    // This returns the voltage at the ADC pin
+    return adcToVoltage((int)_filteredADC);
 }
 
-float PressureSensor::getPressurePercent(float lowV, float highV, float calFactor) {
-    float voltage = getRawVoltage(calFactor);
+float PressureSensor::getPSI() {
+    float vAdc = getRawVoltage();
+    // Externally scaled 0-5V to 0-3.3V
+    // So V_sensor = V_adc * (5.0 / 3.3)
+    float vSensor = vAdc * (5.0f / 3.3f);
 
-    // Linear mapping to 0-100% tank pressure
-    if (highV == lowV) return 0.0f;
-    float percent = (voltage - lowV) / (highV - lowV) * 100.0f;
+    // Sensor: 1V = 0 PSI, 5V = 5000 PSI
+    // PSI = (V_sensor - 1.0) * (5000 / 4.0)
+    float psi = (vSensor - 1.0f) * 1250.0f;
 
-    // Clamp 0-100%
-    if (percent < 0.0f) percent = 0.0f;
-    if (percent > 100.0f) percent = 100.0f;
-
-    return percent;
+    if (psi < 0) psi = 0;
+    return psi;
 }

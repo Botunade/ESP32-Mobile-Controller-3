@@ -8,9 +8,10 @@ public:
     PressureSensor(int pin, int samples = 16);
     ~PressureSensor();
     void begin();
-    float readPressure(float lowV, float highV, float calFactor);
-    float getRawVoltage(float calFactor);
-    float getPressurePercent(float lowV, float highV, float calFactor);
+    float readPressure();
+    float getRawVoltage();
+    float getPSI();
+    float getFilteredADC() { return _filteredADC; }
 
 private:
     int _pin;
@@ -21,7 +22,8 @@ private:
     int _bufferIndex;
     float _bufferSum;
 
-    float adcToVoltage(float adcValue);
+    float adcToVoltage(int adcValue);
+    float voltageToPSI(float voltage);
 };
 
 #endif
