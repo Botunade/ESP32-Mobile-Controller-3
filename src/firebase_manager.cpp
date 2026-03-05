@@ -35,6 +35,12 @@ void FirebaseManager::setupFirebase() {
         Serial.println("Firebase Initialized Successfully.");
         Serial.print("Base Path: ");
         Serial.println("/devices/esp32_controller_1");
+        
+        // Start the real-time command stream
+        if (!Firebase.RTDB.beginStream(&stream, "/devices/esp32_controller_1/commands")) {
+            Serial.printf("Stream begin error: %s\n", stream.errorReason().c_str());
+        }
+        
         uploadState();
     }
 }
@@ -53,10 +59,16 @@ void FirebaseManager::handle() {
         setupFirebase();
     }
 
-    if (Firebase.ready() && (millis() - _lastUploadTime > UPLOAD_INTERVAL || _lastUploadTime == 0)) {
-        _lastUploadTime = millis();
-        uploadState();
-        checkCommands();
+    if (Firebase.ready()) {
+        // 1. Process Real-time Streams (Instant Commands)
+        handleStream();
+
+        // 2. Periodic State Upload
+        if (millis() - _lastUploadTime > UPLOAD_INTERVAL || _lastUploadTime == 0) {
+            _lastUploadTime = millis();
+            uploadState();
+            checkCommands(); // Still check for manual triggers if needed
+        }
     }
 }
 
@@ -104,53 +116,52 @@ void FirebaseManager::uploadState() {
 }
 
 void FirebaseManager::checkCommands() {
-    String commandPath = "/devices/esp32_controller_1/commands/update_settings";
-    
-    if (Firebase.RTDB.getBool(&fbdo, commandPath.c_str())) {
-        if (fbdo.dataType() == "boolean" && fbdo.boolData() == true) {
-            Serial.println("Cloud command received: update_settings");
-            downloadSettings();
-            
-            // acknowledge command
-            Firebase.RTDB.setBool(&fbdo, commandPath.c_str(), false);
-        }
-    }
-    
-    String startPath = "/devices/esp32_controller_1/commands/start_system";
-    if (Firebase.RTDB.getBool(&fbdo, startPath.c_str())) {
-        if (fbdo.dataType() == "boolean" && fbdo.boolData() == true) {
-            Serial.println("Cloud command received: start_system");
-            _state->systemActive = true;
-            Firebase.RTDB.setBool(&fbdo, startPath.c_str(), false);
-            uploadState(); // Immediate sync back
-        }
-    }
-    
-    String stopPath = "/devices/esp32_controller_1/commands/stop_system";
-    if (Firebase.RTDB.getBool(&fbdo, stopPath.c_str())) {
-        if (fbdo.dataType() == "boolean" && fbdo.boolData() == true) {
-            Serial.println("Cloud command received: stop_system");
-            _state->systemActive = false;
-            Firebase.RTDB.setBool(&fbdo, stopPath.c_str(), false);
-            uploadState(); // Immediate sync back
-        }
+    // We still keep this for things that might not be in the stream
+    // or to ensure the command path exists
+}
+
+void FirebaseManager::handleStream() {
+    if (!Firebase.ready()) return;
+
+    if (!Firebase.RTDB.readStream(&stream)) {
+        Serial.printf("Stream read error: %s\n", stream.errorReason().c_str());
+        return;
     }
 
-    String solPath = "/devices/esp32_controller_1/commands/toggle_solenoid";
-    if (Firebase.RTDB.getBool(&fbdo, solPath.c_str())) {
-        if (fbdo.dataType() == "boolean" && fbdo.boolData() == true) {
-            Serial.println("Cloud command received: toggle_solenoid");
-            _state->solenoidState = !_state->solenoidState;
-            Firebase.RTDB.setBool(&fbdo, solPath.c_str(), false);
-            uploadState(); // Immediate sync back
-        }
+    if (stream.streamTimeout()) {
+        Serial.println("Stream timeout, resuming...");
     }
 
-    // Periodic state upload (every 2 seconds)
-    static unsigned long lastUpload = 0;
-    if (millis() - lastUpload > 2000) {
-        lastUpload = millis();
-        uploadState();
+    if (stream.streamAvailable()) {
+        String path = stream.dataPath();
+        String data = stream.payload();
+        
+        // Only react to "true" values (new clicks)
+        if (data == "true") {
+            if (path == "/start_system") {
+                Serial.println(">> Stream Command: start_system");
+                _state->systemActive = true;
+                Firebase.RTDB.setBool(&fbdo, "/devices/esp32_controller_1/commands/start_system", false);
+                uploadState();
+            }
+            else if (path == "/stop_system") {
+                Serial.println(">> Stream Command: stop_system");
+                _state->systemActive = false;
+                Firebase.RTDB.setBool(&fbdo, "/devices/esp32_controller_1/commands/stop_system", false);
+                uploadState();
+            }
+            else if (path == "/toggle_solenoid") {
+                Serial.println(">> Stream Command: toggle_solenoid");
+                _state->solenoidState = !_state->solenoidState;
+                Firebase.RTDB.setBool(&fbdo, "/devices/esp32_controller_1/commands/toggle_solenoid", false);
+                uploadState();
+            }
+            else if (path == "/update_settings") {
+                Serial.println(">> Stream Command: update_settings");
+                downloadSettings();
+                Firebase.RTDB.setBool(&fbdo, "/devices/esp32_controller_1/commands/update_settings", false);
+            }
+        }
     }
 }
 

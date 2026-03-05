@@ -20,6 +20,7 @@ public:
 
 private:
     FirebaseData fbdo;
+    FirebaseData stream;
     FirebaseAuth auth;
     FirebaseConfig config;
     
@@ -33,6 +34,7 @@ private:
     void setupFirebase();
     void uploadState();
     void checkCommands();
+    void handleStream();
     void downloadSettings();
 };
 
