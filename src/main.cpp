@@ -5,6 +5,7 @@
 #include "webserver.h"
 #include "menu.h"
 #include "firebase_manager.h"
+#include "digital_follower.h"
 
 // Hardware Pins Configuration
 // Pressure Sensor: GPIO 34 (Analog Input)
@@ -91,6 +92,7 @@ void setup() {
     // Output Pins Initialization
     pinMode(SOLENOID_PIN, OUTPUT);
     digitalWrite(SOLENOID_PIN, LOW);
+    digitalFollower_init();
 
     sensor.begin();
 
@@ -190,6 +192,8 @@ void loop() {
 
         // Plotting values (silenced for cleaner logs)
         // Serial.print(targetVoltage); Serial.print(","); Serial.println(currentVoltage);
+
+        digitalFollower_update(state, settings);
     }
 
     // Solenoid Actuation Trigger
