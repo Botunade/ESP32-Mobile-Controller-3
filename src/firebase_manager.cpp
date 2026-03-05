@@ -60,24 +60,31 @@ void FirebaseManager::handle() {
     }
 }
 
+// Helper to prevent NaN or Infinity from crashing the Firebase JSON parser
+static inline double safeFloat(double val) {
+    if (isnan(val) || isinf(val)) return 0.0;
+    return val;
+}
+
 void FirebaseManager::uploadState() {
     String basePath = "/devices/esp32_controller_1/state";
     
     // Create a JSON object to send all state parameters at once
     FirebaseJson json;
-    json.set("pressure", _state->pressure);
-    json.set("pressurePercent", _state->pressurePercent);
-    json.set("normalizedPressure", _state->normalizedPressure);
-    json.set("scaledTo3v3", _state->scaledTo3v3);
-    json.set("controlVoltage", _state->controlVoltage);
-    json.set("pidOutput", _state->pidOutput);
-    json.set("dacValue", _state->dacValue);
+    json.set("pressure", safeFloat(_state->pressure));
+    json.set("pressurePercent", safeFloat(_state->pressurePercent));
+    json.set("normalizedPressure", safeFloat(_state->normalizedPressure));
+    json.set("scaledTo3v3", safeFloat(_state->scaledTo3v3));
+    json.set("controlVoltage", safeFloat(_state->controlVoltage));
+    json.set("pidOutput", safeFloat(_state->pidOutput));
+    json.set("dacValue", _state->dacValue); // integer, generally safe
     json.set("isStatic", _state->isStatic);
     json.set("systemActive", _state->systemActive);
     json.set("solenoidState", _state->solenoidState);
-    json.set("tankVolume", _settings->tankVolume);
-    json.set("airVolume", _state->airVolume);
-    json.set("safetyAllowance", _settings->safetyAllowance);
+    json.set("tankVolume", safeFloat(_settings->tankVolume));
+    json.set("airVolume", safeFloat(_state->airVolume));
+    json.set("safetyAllowance", safeFloat(_settings->safetyAllowance));
+    json.set("workingMaxBar", safeFloat(_settings->workingMaxBar));
     
     if (Firebase.RTDB.updateNode(&fbdo, basePath.c_str(), &json)) {
         static unsigned long lastNotify = 0;
