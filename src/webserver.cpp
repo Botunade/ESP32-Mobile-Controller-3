@@ -765,10 +765,6 @@ void PressureWebServer::begin(SystemSettings* settings, SystemState* state) {
     _settings = settings;
     _state = state;
 
-    const int WIFI_LED_PIN = 2; // ESP32 built-in blue LED
-    pinMode(WIFI_LED_PIN, OUTPUT);
-    digitalWrite(WIFI_LED_PIN, LOW);
-
     if (strlen(_settings->wifiSSID) > 0) {
         WiFi.mode(WIFI_AP_STA);
         WiFi.begin(_settings->wifiSSID, _settings->wifiPassword);
@@ -794,25 +790,6 @@ void PressureWebServer::begin(SystemSettings* settings, SystemState* state) {
 void PressureWebServer::handle() {
     _dnsServer.processNextRequest();
     _server.handleClient();
-
-    // Non-blocking WiFi LED Status Logic (GPIO 2)
-    static unsigned long lastBlink = 0;
-    static bool ledState = false;
-
-    if (_settings && strlen(_settings->wifiSSID) > 0) {
-        if (WiFi.status() == WL_CONNECTED) {
-            digitalWrite(2, HIGH); // Solid ON when connected
-        } else {
-            // Blink every 500ms while connecting / disconnected
-            if (millis() - lastBlink >= 500) {
-                lastBlink = millis();
-                ledState = !ledState;
-                digitalWrite(2, ledState ? HIGH : LOW);
-            }
-        }
-    } else {
-        digitalWrite(2, LOW); // LED OFF if no WiFi configured
-    }
 }
 
 void PressureWebServer::setupRoutes() {
