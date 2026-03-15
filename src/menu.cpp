@@ -30,11 +30,20 @@ void MenuSystem::begin(SystemSettings* settings, SystemState* state) {
 
 void MenuSystem::update() {
     char key = _keypad.getKey();
-    if (key) handleKey(key);
+    if (key) {
+        Serial.print("KEYPAD RAW: [");
+        Serial.print(key);
+        Serial.println("]");
+        
+        handleKey(key);
+        updateLCD();
+    }
 
     if (millis() - _lastLcdUpdate > 500) {
         _lastLcdUpdate = millis();
-        updateLCD();
+        if (_currentState == HOME) {
+            updateLCD();
+        }
     }
 }
 
@@ -42,23 +51,28 @@ void MenuSystem::handleKey(char key) {
     // Global Commands
     if (key == 'A') { _currentState = HOME; _editParamIndex = 0; }
     else if (key == 'B') { _currentState = VESSEL_SIZE; _editParamIndex = 0; }
-    else if (key == 'C') { _currentState = PID_PARAMS; _editParamIndex = 0; }
+    else if (key == '1') { _currentState = PID_PARAMS; _editParamIndex = 0; } // Was '9' and 'C', remapped for bad row
     else if (key == 'D') { _currentState = SETPOINT_VOLTAGE; _editParamIndex = 0; }
-    else if (key == '*') { _state->systemActive = true; }
+    else if (key == '*') { 
+        _state->systemActive = true; 
+    }
     else if (key == '#') {
         _state->systemActive = false;
+        _state->solenoidState = false; // Hardware Safety Cutoff Marker
         _currentState = HOME;
     }
 
     // Navigation and Editing (only in setting menus)
     if (_currentState != HOME) {
+        int maxParams = (_currentState == VESSEL_SIZE) ? 0 : 2;
+        
         if (key == '2') { // UP
             _editParamIndex--;
-            if (_editParamIndex < 0) _editParamIndex = 2; 
+            if (_editParamIndex < 0) _editParamIndex = maxParams; 
         }
-        else if (key == '8') { // DOWN
+        else if (key == '0') { // DOWN - Was '8' but remapped due to hardware fault
             _editParamIndex++;
-            if (_editParamIndex > 2) _editParamIndex = 0;
+            if (_editParamIndex > maxParams) _editParamIndex = 0;
         }
         else if (key == '4') { // LEFT (Decrement)
             switch (_currentState) {
@@ -67,8 +81,8 @@ void MenuSystem::handleKey(char key) {
                     if (_settings->tankVolume < 0) _settings->tankVolume = 0;
                     break;
                 case PID_PARAMS:
-                    if (_editParamIndex == 0) _settings->kp -= 0.1f;
-                    else if (_editParamIndex == 1) _settings->ki -= 0.1f;
+                    if (_editParamIndex == 0) _settings->kp -= 0.01f;
+                    else if (_editParamIndex == 1) _settings->ki -= 0.01f;
                     else if (_editParamIndex == 2) _settings->kd -= 0.01f;
                     break;
                 case SETPOINT_VOLTAGE:
@@ -86,8 +100,8 @@ void MenuSystem::handleKey(char key) {
                     if (_settings->tankVolume > 8) _settings->tankVolume = 8;
                     break;
                 case PID_PARAMS:
-                    if (_editParamIndex == 0) _settings->kp += 0.1f;
-                    else if (_editParamIndex == 1) _settings->ki += 0.1f;
+                    if (_editParamIndex == 0) _settings->kp += 0.01f;
+                    else if (_editParamIndex == 1) _settings->ki += 0.01f;
                     else if (_editParamIndex == 2) _settings->kd += 0.01f;
                     break;
                 case SETPOINT_VOLTAGE:
@@ -114,9 +128,10 @@ void MenuSystem::drawHome() {
     _lcd.setCursor(0, 0);
     _lcd.print("--- SYSTEM HOME ---");
     _lcd.setCursor(0, 1);
-    _lcd.print("Setpoint: "); _lcd.print(_settings->setpoint, 2); _lcd.print(" BAR ");
+    _lcd.print("PV: "); _lcd.print(_state->pressure, 2); 
+    _lcd.print(" SP: "); _lcd.print(_settings->setpoint, 2);
     _lcd.setCursor(0, 2);
-    _lcd.print("Pressure: "); _lcd.print(_state->pressure, 2); _lcd.print(" BAR ");
+    _lcd.print("OutV: "); _lcd.print(_state->controlVoltage, 2); _lcd.print("V  ");
     _lcd.setCursor(0, 3);
     _lcd.print("Vol: "); _lcd.print(_state->airVolume, 1); _lcd.print("L ");
     if (!_state->systemActive) {
