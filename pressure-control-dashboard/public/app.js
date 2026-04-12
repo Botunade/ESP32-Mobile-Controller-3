@@ -93,6 +93,7 @@ const inputSensorMinV = document.getElementById('sensorMinV');
 const inputSensorMaxV = document.getElementById('sensorMaxV');
 const inputSensorMaxBar = document.getElementById('sensorMaxBar');
 const inputWorkingMaxBar = document.getElementById('workingMaxBar');
+const inputDeadband = document.getElementById('deadband');
 const inputAccuracyMinV = document.getElementById('accuracyMinV');
 const inputAccuracyMaxV = document.getElementById('accuracyMaxV');
 const syncConfigBadge = document.getElementById('syncConfigBadge');
@@ -234,6 +235,7 @@ function fetchSettings() {
             inputSensorMaxV.value = data.sensorMaxV || '';
             inputSensorMaxBar.value = data.sensorMaxBar || '';
             inputWorkingMaxBar.value = data.workingMaxBar || '';
+            inputDeadband.value = data.deadband || '0.1';
             inputAccuracyMinV.value = data.accuracyMinV || '';
             inputAccuracyMaxV.value = data.accuracyMaxV || '';
 
@@ -286,6 +288,7 @@ btnSaveConfig.addEventListener('click', async () => {
         sensorMaxV: parseFloat(inputSensorMaxV.value) || 0,
         sensorMaxBar: parseFloat(inputSensorMaxBar.value) || 0,
         workingMaxBar: parseFloat(inputWorkingMaxBar.value) || 0,
+        deadband: parseFloat(inputDeadband.value) || 0.1,
         accuracyMinV: parseFloat(inputAccuracyMinV.value) || 0,
         accuracyMaxV: parseFloat(inputAccuracyMaxV.value) || 0
     };

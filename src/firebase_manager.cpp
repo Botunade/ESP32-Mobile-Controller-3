@@ -85,6 +85,7 @@ void FirebaseManager::uploadState() {
     json.set("airVolume", safeFloat(_state->airVolume));
     json.set("safetyAllowance", safeFloat(_settings->safetyAllowance));
     json.set("workingMaxBar", safeFloat(_settings->workingMaxBar));
+    json.set("deadband", safeFloat(_settings->deadband));
     
     if (Firebase.RTDB.updateNode(&fbdo, basePath.c_str(), &json)) {
         static unsigned long lastNotify = 0;
@@ -202,6 +203,9 @@ void FirebaseManager::downloadSettings() {
 
         json.get(jsonData, "safetyAllowance");
         if (jsonData.success) _settings->safetyAllowance = jsonData.doubleValue;
+
+        json.get(jsonData, "deadband");
+        if (jsonData.success) _settings->deadband = jsonData.doubleValue;
         
         Serial.println("Settings downloaded from Firebase.");
     } else {

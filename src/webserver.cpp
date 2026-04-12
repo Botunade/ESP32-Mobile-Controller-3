@@ -6,754 +6,444 @@ const char* DASHBOARD_HTML = R"=====(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pressure Control System</title>
+    <title>Sanni | Dual-Track Controller</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-body: #f8fafc;
-            --bg-card: #ffffff;
-            --border: #e2e8f0;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --primary: #0ea5e9;
-            --primary-hover: #0284c7;
+            --accent: #06b6d4;
+            --accent-glow: rgba(6, 182, 212, 0.4);
+            --bg: #020617;
+            --card-bg: rgba(30, 41, 59, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
             --success: #10b981;
             --danger: #ef4444;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-            --radius-md: 12px;
-            --radius-lg: 16px;
+            --radius: 20px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
         
         body {
-            background-color: var(--bg-body);
-            color: var(--text-main);
+            background: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
             padding: 2rem 1rem;
-            line-height: 1.5;
-            -webkit-font-smoothing: antialiased;
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 1100px;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 2rem;
         }
 
-        /* Header Area */
-        .header {
+        /* Glassmorphism Classes */
+        .glass {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Header */
+        header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: var(--bg-card);
-            padding: 1.5rem 2rem;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--border);
+            padding: 1.5rem 2.5rem;
         }
 
-        h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+        h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.025em; color: var(--accent); }
 
         .status-badge {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            font-weight: 600;
-            background: #f1f5f9;
-            color: var(--text-muted);
-            transition: all 0.3s ease;
-        }
-
-        .status-badge.running {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .status-badge.running::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--success);
-            box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
-            animation: pulse-green 2s infinite;
-        }
-
-        /* Error Banner */
-        .error-banner {
-            display: none;
-            background: #fef2f2;
-            color: #991b1b;
-            padding: 1rem;
-            border-radius: var(--radius-md);
-            border-left: 4px solid var(--danger);
-            font-weight: 500;
-            font-size: 0.9rem;
-            box-shadow: var(--shadow-sm);
-        }
-
-        /* Grid Layouts */
-        .grid-top {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 1.5rem;
-        }
-
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 1.5rem;
-            box-shadow: var(--shadow-sm);
-            transition: box-shadow 0.3s ease;
-        }
-        .card:hover { box-shadow: var(--shadow-md); }
-
-        .card-header {
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: var(--text-muted);
+            gap: 0.75rem;
+            padding: 0.5rem 1.25rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin-bottom: 1.25rem;
+            background: rgba(0,0,0,0.2);
         }
 
-        /* Metrics List */
-        .metrics-list { display: flex; flex-direction: column; gap: 1.25rem; }
-        
-        .metric-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 0.75rem;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .metric-item:last-child { border-bottom: none; padding-bottom: 0; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #475569; }
+        .running .status-dot { background: var(--success); box-shadow: 0 0 12px var(--success); animation: pulse 2s infinite; }
 
-        .metric-label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500;}
-        .metric-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .metric-unit { font-size: 0.875rem; color: var(--text-muted); font-weight: 500; margin-left: 2px;}
-
-        /* Chart Area */
-        .chart-container {
-            position: relative;
-            height: 300px;
-            width: 100%;
+        @keyframes pulse {
+            0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; }
         }
 
-        /* Settings Grid */
-        .settings-grid {
+        /* Main Dashboard Grid */
+        .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 1.5rem;
         }
 
-        .input-group {
+        .metric-card {
+            padding: 2rem;
+            text-align: center;
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .input-group label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--text-muted);
-        }
-
-        input[type="number"], input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            font-size: 1rem;
-            color: var(--text-main);
-            background: #f8fafc;
-            transition: all 0.2s ease;
-            outline: none;
-        }
-        input[type="number"]:focus, input[type="text"]:focus, input[type="password"]:focus {
-            background: var(--bg-card);
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-        }
-
-        .btn-update {
-            margin-top: 1.5rem;
-            width: 100%;
-            padding: 1rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s ease, transform 0.1s ease;
-        }
-        .btn-update:hover { background: var(--primary-hover); }
-        .btn-update:active { transform: scale(0.98); }
-
-        /* Modal Styles */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
             align-items: center;
             justify-content: center;
         }
-        .modal {
-            background: white;
+
+        .metric-label { font-size: 0.875rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; }
+        .metric-value-large { font-size: 3.5rem; font-weight: 800; line-height: 1; letter-spacing: -0.05em; margin-bottom: 0.25rem; }
+        .metric-unit-large { font-size: 1rem; font-weight: 600; color: var(--accent); }
+
+        /* Sliders & Controls */
+        .controls-card {
+            grid-column: span 3;
             padding: 2.5rem;
-            border-radius: var(--radius-lg);
-            text-align: center;
-            max-width: 400px;
-            width: 90%;
-            box-shadow: var(--shadow-md);
-            animation: modal-pop 0.3s ease;
-        }
-        @keyframes modal-pop {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        .loader {
-            width: 48px; height: 48px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1.5rem;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* Status Grid Updates */
-        .config-summary {
-            padding: 1rem;
-            background: #f1f5f9;
-            border-radius: var(--radius-md);
-            font-size: 0.85rem;
-            margin-bottom: 1rem;
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.5rem;
+            grid-template-columns: 2fr 1fr;
+            gap: 3rem;
         }
-        .config-label { font-weight: 600; color: var(--text-muted); }
 
-        @keyframes pulse-green {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        .sp-slider-group { display: flex; flex-direction: column; gap: 1.5rem; }
+        .sp-header { display: flex; justify-content: space-between; align-items: flex-end; }
+        .sp-title { font-size: 1.1rem; font-weight: 700; }
+        .sp-val { font-size: 2.5rem; font-weight: 800; color: var(--accent); }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 15px var(--accent-glow);
+            border: 4px solid var(--bg);
+        }
+
+        .btn-toggle {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 1.25rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .btn-toggle.off { background: rgba(0,0,0,0.3); color: var(--text-muted); border: 1px solid var(--glass-border); }
+        .btn-toggle.on { background: var(--accent); color: var(--bg); box-shadow: 0 0 30px var(--accent-glow); }
+
+        /* Chart */
+        .chart-card { grid-column: span 3; padding: 2rem; min-height: 350px; }
+
+        /* Detailed Config */
+        .config-section { grid-column: span 3; }
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+        }
+
+        .input-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        .input-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+        
+        input[type="number"], input[type="text"], input[type="password"] {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            color: white;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--accent); }
+
+        .btn-save {
+            grid-column: span 3;
+            padding: 1rem;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 1rem;
         }
 
         /* Responsive */
-        @media (max-width: 768px) {
-            .grid-top { grid-template-columns: 1fr; }
-            .header { flex-direction: column; gap: 1rem; text-align: center; }
+        @media (max-width: 900px) {
+            .dashboard-grid, .controls-card { grid-template-columns: 1fr; }
+            .metric-card, .controls-card, .chart-card { grid-column: span 1; }
+        }
+
+        /* Overlay */
+        .overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Reboot Modal -->
-        <div id="save-modal" class="modal-overlay">
-            <div class="modal">
-                <div class="loader"></div>
-                <h2 style="margin-bottom: 0.5rem;">Settings Saved!</h2>
-                <p id="reboot-msg" style="color: var(--text-muted);">The system is rebooting to apply changes. Please wait <span id="countdown">5</span> seconds...</p>
-            </div>
+    <div id="reboot-overlay" class="overlay">
+        <div class="glass" style="padding: 3rem;">
+            <h2 style="margin-bottom: 1rem;">Saving System State</h2>
+            <p style="color: var(--text-muted);">Rebooting in <span id="timer">5</span>...</p>
         </div>
+    </div>
 
-        <!-- Header -->
-        <header class="header">
-            <div>
-                <h1>Pressure Control</h1>
+    <div class="container">
+        <header class="glass">
+            <h1>SANNI | DUAL-TRACK</h1>
+            <div id="status-badge" class="status-badge">
+                <div class="status-dot"></div>
+                <span id="status-text">OFFLINE</span>
             </div>
-            <div id="status" class="status-badge">SYSTEM IDLE</div>
         </header>
 
-        <!-- Warnings -->
-        <div id="static-warning" class="error-banner">
-            ⚠️ WARNING: PID output is not changing. Please check scaling or sensor connection.
-        </div>
-
-        <!-- Utility Buttons -->
-        <div class="card" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h3 style="margin-bottom: 0.25rem;">Solenoid Valve Override</h3>
-                <p style="font-size: 0.875rem; color: var(--text-muted);">Manually trigger the relay to open/close the valve.</p>
-            </div>
-            <button id="btn-solenoid" class="btn-solenoid-toggle" data-state="off" style="width: auto; background: var(--border); color: var(--text-main); margin-top: 0; padding: 0.75rem 1.5rem; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-weight: 600;" onclick="toggleSolenoid()">
-                VALVE OFF
-            </button>
-        </div>
-
-        <!-- Top Grid -->
-        <div class="grid-top">
-            <!-- Live Metrics -->
-            <div class="card">
-                <div class="card-header">Telemetry</div>
-                <div class="metrics-list">
-                    <div class="metric-item">
-                        <span class="metric-label">Pressure</span>
-                        <div>
-                            <span id="pressure" class="metric-value" style="color: var(--primary);">0.0</span>
-                            <span class="metric-unit">BAR</span>
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Target Setpoint</span>
-                        <div>
-                            <span id="setpoint-display" class="metric-value">0.0</span>
-                            <span class="metric-unit">BAR</span>
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Air Volume</span>
-                        <div>
-                            <span id="airVolume" class="metric-value" style="color: #6366f1;">0.0</span>
-                            <span class="metric-unit">L</span>
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Control Voltage</span>
-                        <div>
-                            <span id="voltage" class="metric-value" style="color: var(--text-muted);">0.00</span>
-                            <span class="metric-unit">V</span>
-                        </div>
-                    </div>
-                </div>
+        <main class="dashboard-grid">
+            <!-- Telemetry -->
+            <div class="metric-card glass">
+                <span class="metric-label">Actual (PV)</span>
+                <span id="pv-perc" class="metric-value-large">0</span>
+                <span class="metric-unit-large">% TOTAL SCALE</span>
             </div>
 
-            <!-- Diagnostics -->
-            <div class="card">
-                <div class="card-header">Advanced Diagnostics</div>
-                <div class="metrics-list">
-                    <div class="metric-item">
-                        <span class="metric-label">Filtered ADC</span>
-                        <div>
-                            <span id="rawADC" class="metric-value" style="color: var(--text-muted); font-size: 1rem;">0</span>
-                            <span class="metric-unit">Units</span>
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Sensor Raw</span>
-                        <div>
-                            <span id="sensorV" class="metric-value" style="color: var(--text-muted); font-size: 1rem;">0.00</span>
-                            <span class="metric-unit">V</span>
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">DAC / PWM</span>
-                        <div>
-                            <span id="dacValue" class="metric-value" style="color: var(--text-muted); font-size: 1rem;">0</span>
-                            <span class="metric-unit">/ 1023</span>
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">PID Raw Output</span>
-                        <div>
-                            <span id="pidOut" class="metric-value" style="color: var(--text-muted); font-size: 1rem;">0.00</span>
-                            <span class="metric-unit">V</span>
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <span class="metric-label">Resampled Scale</span>
-                        <div>
-                            <span id="scaled3v3" class="metric-value" style="color: #10b981; font-weight: bold; font-size: 1rem;">0.00</span>
-                            <span class="metric-unit">V (0.66-3.3)</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="metric-card glass">
+                <span class="metric-label">Simulated (OUT)</span>
+                <span id="out-perc" class="metric-value-large">0</span>
+                <span class="metric-unit-large">% OUTPUT POWER</span>
             </div>
 
-            <!-- Chart -->
-            <div class="card">
-                <div class="card-header">Live Pressure Trend</div>
-                <div class="chart-container">
-                    <canvas id="pressureChart"></canvas>
-                </div>
+            <div class="metric-card glass">
+                <span class="metric-label">Pneumatic Stat</span>
+                <span id="pv-bar" class="metric-value-large" style="font-size: 2.5rem;">0.0</span>
+                <span id="pv-liters" class="metric-unit-large">0.0 L AIR</span>
             </div>
-        </div>
 
-        <!-- Logic Rules Card -->
-        <div class="card" style="background: #fafafa; border-style: dashed;">
-            <div class="card-header" style="color: var(--primary);">System Calibration Rules</div>
-            <div style="font-size: 0.85rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    <p><strong>ADC Logic:</strong> V = (ADC/4095) * 3.3</p>
-                    <p><strong>BAR Mapping:</strong> (V - Vmin) * (MaxBAR / (Vmax - Vmin))</p>
+            <!-- Main Control -->
+            <div class="controls-card glass">
+                <div class="sp-slider-group">
+                    <div class="sp-header">
+                        <span class="sp-title">SETPOINT TARGET (%)</span>
+                        <span id="sp-val-display" class="sp-val">0%</span>
+                    </div>
+                    <input type="range" id="sp-slider" min="0" max="100" step="1" oninput="updateSPSlider(this.value)" onchange="sendSetpoint(this.value)">
+                    <div style="display: flex; justify-content: space-between; color: var(--text-muted); font-size: 0.75rem;">
+                        <span>0% (0 Bar)</span>
+                        <span>50% (3 Bar)</span>
+                        <span>100% (6 Bar)</span>
+                    </div>
                 </div>
                 <div>
-                    <p><strong>Safety:</strong> Bypass Open at Setpoint + 0.5 BAR</p>
-                    <p><strong>Limit:</strong> Tank max 8L / Sensor max 12 BAR</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Settings Grid -->
-        <div class="card">
-            <div class="card-header">System Configuration</div>
-            
-            <div class="config-summary">
-                <div><span class="config-label">Active SSID:</span> <span id="active-ssid">-</span></div>
-                <div><span class="config-label">Tank Size:</span> <span id="active-tank">-</span></div>
-            </div>
-
-            <div class="settings-grid">
-                <div class="input-group">
-                    <label for="tankVol">Tank Size (L, Max 8)</label>
-                    <input type="number" id="tankVol" step="0.1" max="8">
-                </div>
-                <div class="input-group">
-                    <label for="kp">Proportional (Kp)</label>
-
-                    <input type="number" id="kp" step="0.1">
-                </div>
-                <div class="input-group">
-                    <label for="ki">Integral (Ki)</label>
-                    <input type="number" id="ki" step="0.1">
-                </div>
-                <div class="input-group">
-                    <label for="kd">Derivative (Kd)</label>
-                    <input type="number" id="kd" step="0.01">
-                </div>
-                <div class="input-group">
-                    <label for="setpoint">Setpoint (BAR)</label>
-                    <input type="number" id="setpoint" step="0.1" max="12">
-                </div>
-                <div class="input-group">
-                    <label for="safeAllow">Safety Allowance (BAR)</label>
-                    <input type="number" id="safeAllow" step="0.1" value="0.5">
-                </div>
-                <div class="input-group">
-                    <label for="minV">DAC Min (V)</label>
-                    <input type="number" id="minV" step="0.1">
-                </div>
-                <div class="input-group">
-                    <label for="maxV">DAC Max (V)</label>
-                    <input type="number" id="maxV" step="0.1">
+                    <button id="system-toggle" class="btn-toggle off" onclick="toggleSystem()">SYSTEM OFF</button>
+                    <button id="solenoid-toggle" class="glass" onclick="toggleSolenoid()" style="width:100%; border:none; padding:10px; margin-top:10px; cursor:pointer; font-size:0.7rem; color:var(--text-muted); font-weight:bold;">SOLENOID OVERRIDE</button>
                 </div>
             </div>
 
-            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border);">
-            <div class="card-header">Sensor Scaling (4-20mA / 117Ω)</div>
-            <div class="settings-grid">
-                <div class="input-group">
-                    <label for="sMinV">Sensor Min (V)</label>
-                    <input type="number" id="sMinV" step="0.001">
+            <!-- Visualization -->
+            <div class="chart-card glass">
+                <canvas id="mainChart"></canvas>
+            </div>
+
+            <!-- Advanced Configuration -->
+            <div class="config-section glass">
+                <div style="padding: 1.5rem 2rem; border-bottom: 1px solid var(--glass-border); font-weight: 800; font-size: 0.8rem; letter-spacing: 0.1em;">
+                    HARDWARE CALIBRATION & NETWORK
                 </div>
-                <div class="input-group">
-                    <label for="sMaxV">Sensor Max (V)</label>
-                    <input type="number" id="sMaxV" step="0.001">
-                </div>
-                <div class="input-group">
-                    <label for="sMaxP">Sensor Full Scale (BAR)</label>
-                    <input type="number" id="sMaxP" step="0.1">
-                </div>
-                <div class="input-group">
-                    <label for="wMaxP">Working Max (BAR)</label>
-                    <input type="number" id="wMaxP" step="0.1">
-                </div>
-                <div class="input-group">
-                    <label for="aMinV">Acc. Scale Min (V)</label>
-                    <input type="number" id="aMinV" step="0.01">
-                </div>
-                <div class="input-group">
-                    <label for="aMaxV">Acc. Scale Max (V)</label>
-                    <input type="number" id="aMaxV" step="0.01">
+                <div class="config-grid">
+                    <div class="input-group">
+                        <label>Target Vessel (L)</label>
+                        <input type="number" id="f-tankVol">
+                    </div>
+                    <div class="input-group">
+                        <label>Track 2 Kp</label>
+                        <input type="number" id="f-kp" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>Track 2 Ki</label>
+                        <input type="number" id="f-ki" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>Track 1 Deadband (Bar)</label>
+                        <input type="number" id="f-dband" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>Safety Limit (Bar)</label>
+                        <input type="number" id="f-safeAllow" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>Working Max (Bar)</label>
+                        <input type="number" id="f-wMaxP" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <label>WiFi SSID</label>
+                        <input type="text" id="f-wifiSSID">
+                    </div>
+                    <div class="input-group">
+                        <label>WiFi Pass</label>
+                        <input type="password" id="f-wifiPassword">
+                    </div>
+                    <button class="btn-save" onclick="saveSettings()">COMMIT TO NVS</button>
                 </div>
             </div>
-            <div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); display: flex; justify-content: space-around; font-size: 0.9rem;">
-                <div><span style="color: var(--text-muted);">Live Raw:</span> <span id="liveSensorV" style="font-weight: bold; color: var(--primary);">0.00</span> V</div>
-                <div><span style="color: var(--text-muted);">Live Acc:</span> <span id="liveScaledV" style="font-weight: bold; color: #10b981;">0.00</span> V</div>
-            </div>
-            
-            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border);">
-            <div class="card-header">Wi-Fi Configuration (For Cloud Mode)</div>
-            <div class="settings-grid">
-                <div class="input-group">
-                    <label for="wifiSSID">WiFi SSID</label>
-                    <input type="text" id="wifiSSID" placeholder="Network Name">
-                </div>
-                <div class="input-group">
-                    <label for="wifiPassword">WiFi Password</label>
-                    <input type="password" id="wifiPassword" placeholder="**********">
-                </div>
-            </div>
-            
-            <button id="btn-save-settings" class="btn-update" onclick="updateSettings()">Apply Configuration</button>
-        </div>
+        </main>
     </div>
 
     <script>
         let chart;
-        const maxDataPoints = 60; // 30 seconds at 500ms intervals
-        const dataHistory = Array(maxDataPoints).fill(null);
-        const setpointHistory = Array(maxDataPoints).fill(null);
-        const workingMaxHistory = Array(maxDataPoints).fill(null);
-        const labels = Array(maxDataPoints).fill('');
+        const historySize = 50;
+        let pvData = Array(historySize).fill(0);
+        let spData = Array(historySize).fill(0);
 
         function initChart() {
-            const ctx = document.getElementById('pressureChart').getContext('2d');
-            
-            // Create Gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(14, 165, 233, 0.2)');
-            gradient.addColorStop(1, 'rgba(14, 165, 233, 0)');
-
+            const ctx = document.getElementById('mainChart').getContext('2d');
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: Array(historySize).fill(''),
                     datasets: [
-                        {
-                            label: 'Pressure',
-                            data: dataHistory,
-                            borderColor: '#0ea5e9',
-                            backgroundColor: gradient,
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 0,
-                            pointHitRadius: 10
-                        },
-                        {
-                            label: 'Setpoint',
-                            data: setpointHistory,
-                            borderColor: '#cbd5e1',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            fill: false,
-                            tension: 0,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Working Max',
-                            data: workingMaxHistory,
-                            borderColor: '#ef4444',
-                            borderDash: [5, 5],
-                            borderWidth: 1.5,
-                            fill: false,
-                            tension: 0,
-                            pointRadius: 0
-                        }
+                        { label: 'PV', data: pvData, borderColor: '#06b6d4', borderWidth: 3, tension: 0.4, pointRadius: 0, fill: true, backgroundColor: 'rgba(6, 182, 212, 0.1)' },
+                        { label: 'SP', data: spData, borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1, borderDash: [5,5], pointRadius: 0 }
                     ]
                 },
-                options: { 
+                options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
+                    scales: {
+                        y: { min: 0, max: 100, border: {display: false}, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { display: false }
                     },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            titleFont: { family: 'Inter', size: 13 },
-                            bodyFont: { family: 'Inter', size: 13 },
-                            padding: 10,
-                            cornerRadius: 8,
-                            displayColors: true
-                        }
-                    },
-                    scales: { 
-                        y: { 
-                            beginAtZero: true,
-                            grid: { color: '#f1f5f9', drawBorder: false },
-                            ticks: { font: { family: 'Inter' }, color: '#64748b' }
-                        },
-                        x: {
-                            grid: { display: false, drawBorder: false },
-                            ticks: { display: false }
-                        }
-                    } 
+                    plugins: { legend: { display: false } }
                 }
             });
         }
 
-        async function fetchData() {
+        async function sync() {
             try {
-                const response = await fetch('/data');
-                const data = await response.json();
+                const res = await fetch('/data');
+                const d = await res.json();
+
+                // Telemetry
+                document.getElementById('pv-perc').innerText = Math.round(d.pvPerc);
+                document.getElementById('out-perc').innerText = Math.round(d.outPerc);
+                document.getElementById('pv-bar').innerText = d.pressure.toFixed(1);
+                document.getElementById('pv-liters').innerText = d.airVolume.toFixed(1) + ' L AIR';
                 
-                // Update text elements
-                document.getElementById('pressure').innerText = data.pressure.toFixed(2);
-                document.getElementById('voltage').innerText = data.voltage.toFixed(2);
-                document.getElementById('setpoint-display').innerText = data.setpoint.toFixed(2);
-                document.getElementById('airVolume').innerText = (data.airVolume || 0).toFixed(2);
-                
-                // Diagnostics
-                document.getElementById('rawADC').innerText = Math.round(data.rawADC);
-                document.getElementById('sensorV').innerText = data.sensorV.toFixed(2);
-                document.getElementById('dacValue').innerText = data.dacValue;
-                document.getElementById('pidOut').innerText = data.pidOut.toFixed(2);
-                document.getElementById('scaled3v3').innerText = (data.scaled3v3 || 0).toFixed(2);
-                if (document.getElementById('liveSensorV')) document.getElementById('liveSensorV').innerText = data.sensorV.toFixed(2);
-                if (document.getElementById('liveScaledV')) document.getElementById('liveScaledV').innerText = (data.scaled3v3 || 0).toFixed(2);
-                
-                // Update Status Badge
-                const statusEl = document.getElementById('status');
-                if(data.active) {
-                    statusEl.innerText = 'SYSTEM RUNNING';
-                    statusEl.className = 'status-badge running';
+                // Status
+                const badge = document.getElementById('status-badge');
+                if (d.active) {
+                    badge.classList.add('running');
+                    document.getElementById('status-text').innerText = 'System Active';
+                    document.getElementById('system-toggle').innerText = 'STOP SYSTEM';
+                    document.getElementById('system-toggle').className = 'btn-toggle on';
                 } else {
-                    statusEl.innerText = 'SYSTEM IDLE';
-                    statusEl.className = 'status-badge';
+                    badge.classList.remove('running');
+                    document.getElementById('status-text').innerText = 'System Idle';
+                    document.getElementById('system-toggle').innerText = 'START SYSTEM';
+                    document.getElementById('system-toggle').className = 'btn-toggle off';
                 }
 
-                // Solenoid Button State Update
-                if(!isUpdatingSolenoid) {
-                    const solBtn = document.getElementById('btn-solenoid');
-                    if(data.solenoid) {
-                        solBtn.innerText = 'VALVE ON';
-                        solBtn.style.background = 'var(--primary)';
-                        solBtn.style.color = 'white';
-                        solBtn.setAttribute('data-state', 'on');
-                    } else {
-                        solBtn.innerText = 'VALVE OFF';
-                        solBtn.style.background = 'var(--border)';
-                        solBtn.style.color = 'var(--text-main)';
-                        solBtn.setAttribute('data-state', 'off');
-                    }
-                }
+                const solBtn = document.getElementById('solenoid-toggle');
+                solBtn.style.color = d.solenoid ? '#ef4444' : '#94a3b8';
+                solBtn.innerText = d.solenoid ? 'SAFETY BYPASS OPEN' : 'SOLENOID READY';
 
-                // Warnings
-                document.getElementById('static-warning').style.display = data.isStatic ? 'block' : 'none';
-
-                // Update Chart Arrays
-                dataHistory.push(data.pressure);
-                setpointHistory.push(data.setpoint);
-                workingMaxHistory.push(data.wMaxP || 0);
-                labels.push('');
-                
-                if (dataHistory.length > maxDataPoints) {
-                    dataHistory.shift();
-                    setpointHistory.shift();
-                    workingMaxHistory.shift();
-                    labels.shift();
-                }
+                // Chart
+                pvData.push(d.pvPerc);
+                spData.push(d.spPerc);
+                if (pvData.length > historySize) { pvData.shift(); spData.shift(); }
                 chart.update('none');
 
-                // Populate Form (only if empty to not overwrite user typing)
-                if (!document.getElementById('tankVol').value) {
-                    document.getElementById('tankVol').value = data.tankVol;
-                    document.getElementById('kp').value = data.kp;
-                    document.getElementById('ki').value = data.ki;
-                    document.getElementById('kd').value = data.kd;
-                    document.getElementById('setpoint').value = data.setpoint;
-                    document.getElementById('safeAllow').value = data.safeAllow;
-                    document.getElementById('minV').value = data.minV;
-                    document.getElementById('maxV').value = data.maxV;
-                    document.getElementById('sMinV').value = data.sMinV;
-                    document.getElementById('sMaxV').value = data.sMaxV;
-                    document.getElementById('sMaxP').value = data.sMaxP;
-                    document.getElementById('wMaxP').value = data.wMaxP;
-                    document.getElementById('aMinV').value = data.aMinV;
-                    document.getElementById('aMaxV').value = data.aMaxV;
-                    document.getElementById('wifiSSID').value = data.wifiSSID || '';
-                    document.getElementById('wifiPassword').value = data.wifiPassword || '';
+                // Initial Form Load
+                if (!document.getElementById('f-tankVol').value) {
+                    document.getElementById('f-tankVol').value = d.tankVol;
+                    document.getElementById('f-kp').value = d.kp;
+                    document.getElementById('f-ki').value = d.ki;
+                    document.getElementById('f-dband').value = d.dband;
+                    document.getElementById('f-safeAllow').value = d.safeAllow;
+                    document.getElementById('f-wMaxP').value = d.wMaxP;
+                    document.getElementById('sp-slider').value = d.spPerc;
+                    document.getElementById('sp-val-display').innerText = Math.round(d.spPerc) + '%';
                 }
 
-                // Update configuration summary
-                document.getElementById('active-ssid').innerText = data.wifiSSID || 'NONE';
-                document.getElementById('active-tank').innerText = data.tankVol + " L";
-            } catch (e) { console.error('Data fetch failed', e); }
+            } catch(e) {}
         }
 
-        let isUpdatingSolenoid = false; // Flag to prevent jitter during fetch
+        function updateSPSlider(v) {
+            document.getElementById('sp-val-display').innerText = v + '%';
+        }
+
+        async function sendSetpoint(v) {
+            await fetch(`/update?spPerc=${v}`);
+        }
+
+        async function toggleSystem() {
+            const btn = document.getElementById('system-toggle');
+            const turnOn = btn.classList.contains('off');
+            await fetch(`/update?active=${turnOn ? '1' : '0'}`);
+        }
+
         async function toggleSolenoid() {
-            const btn = document.getElementById('btn-solenoid');
-            const state = btn.getAttribute('data-state');
-            const turnOn = (state !== 'on');
-            
-            // 1. Instant UI Feedback (Optimistic)
-            isUpdatingSolenoid = true;
-            if(turnOn) {
-                btn.innerText = 'VALVE ON';
-                btn.style.background = 'var(--primary)';
-                btn.style.color = 'white';
-                btn.setAttribute('data-state', 'on');
-            } else {
-                btn.innerText = 'VALVE OFF';
-                btn.style.background = 'var(--border)';
-                btn.style.color = 'var(--text-main)';
-                btn.setAttribute('data-state', 'off');
-            }
-
-            try {
-                await fetch('/update?solenoid=' + (turnOn ? '1' : '0'));
-                // Briefly wait before allowing fetchData to overwrite UI
-                setTimeout(() => { isUpdatingSolenoid = false; }, 1500);
-            } catch(e) { 
-                console.error('Failed to toggle solenoid', e); 
-                isUpdatingSolenoid = false;
-            }
+            const res = await fetch('/data');
+            const d = await res.json();
+            await fetch(`/update?solenoid=${d.solenoid ? '0' : '1'}`);
         }
 
-        async function updateSettings() {
-            const btn = document.getElementById('btn-save-settings');
-            const originalText = btn.innerText;
-            btn.innerText = 'Saving...';
-            btn.style.opacity = '0.7';
-
-            try {
-                const params = new URLSearchParams({
-                    tankVol: document.getElementById('tankVol').value,
-                    kp: document.getElementById('kp').value,
-                    ki: document.getElementById('ki').value,
-                    kd: document.getElementById('kd').value,
-                    setpoint: document.getElementById('setpoint').value,
-                    safeAllow: document.getElementById('safeAllow').value,
-                    minV: document.getElementById('minV').value,
-                    maxV: document.getElementById('maxV').value,
-                    sMinV: document.getElementById('sMinV').value,
-                    sMaxV: document.getElementById('sMaxV').value,
-                    sMaxP: document.getElementById('sMaxP').value,
-                    wMaxP: document.getElementById('wMaxP').value,
-                    aMinV: document.getElementById('aMinV').value,
-                    aMaxV: document.getElementById('aMaxV').value,
-                    wifiSSID: document.getElementById('wifiSSID').value,
-                    wifiPassword: document.getElementById('wifiPassword').value
-                });
-                await fetch('/update?' + params.toString());
-                
-                // Show Reboot Modal
-                document.getElementById('save-modal').style.display = 'flex';
-                let counts = 5;
-                const timer = setInterval(async () => {
-                    counts--;
-                    document.getElementById('countdown').innerText = counts;
-                    if (counts <= 0) {
-                        clearInterval(timer);
-                        document.getElementById('reboot-msg').innerText = "Rebooting now... Reconnecting in a moment.";
-                        await fetch('/restart');
-                    }
-                }, 1000);
-
-            } catch (e) {
-                btn.innerText = 'Error Saving';
-                btn.style.background = 'var(--danger)';
-                setTimeout(() => {
-                    btn.innerText = originalText;
-                    btn.style.background = '';
-                }, 2000);
-            }
+        async function saveSettings() {
+            const params = new URLSearchParams({
+                tankVol: document.getElementById('f-tankVol').value,
+                kp: document.getElementById('f-kp').value,
+                ki: document.getElementById('f-ki').value,
+                dband: document.getElementById('f-dband').value,
+                safeAllow: document.getElementById('f-safeAllow').value,
+                wMaxP: document.getElementById('f-wMaxP').value,
+                wifiSSID: document.getElementById('f-wifiSSID').value,
+                wifiPassword: document.getElementById('f-wifiPassword').value
+            });
+            await fetch('/update?' + params.toString());
+            
+            document.getElementById('reboot-overlay').style.display = 'flex';
+            let c = 5;
+            const t = setInterval(async () => {
+                c--;
+                document.getElementById('timer').innerText = c;
+                if (c <= 0) {
+                    clearInterval(t);
+                    await fetch('/restart');
+                }
+            }, 1000);
         }
 
         initChart();
-        setInterval(fetchData, 500);
+        setInterval(sync, 500);
     </script>
 </body>
 </html>
@@ -830,6 +520,10 @@ void PressureWebServer::handleData() {
     doc["solenoid"] = _state->solenoidState;
     doc["airVolume"] = _state->airVolume;
     doc["scaled3v3"] = _state->scaledTo3v3;
+    doc["spPerc"] = _settings->spPercent;
+    doc["pvPerc"] = _state->displayPV;
+    doc["outPerc"] = _state->displayOUT;
+    doc["dband"] = _settings->deadband;
     doc["tankVol"] = _settings->tankVolume;
     doc["kp"] = _settings->kp;
     doc["ki"] = _settings->ki;
@@ -869,6 +563,8 @@ void PressureWebServer::handleUpdate() {
     if (_server.hasArg("ki")) _settings->ki = _server.arg("ki").toFloat();
     if (_server.hasArg("kd")) _settings->kd = _server.arg("kd").toFloat();
     if (_server.hasArg("setpoint")) _settings->setpoint = _server.arg("setpoint").toFloat();
+    if (_server.hasArg("spPerc")) _settings->spPercent = _server.arg("spPerc").toFloat();
+    if (_server.hasArg("dband")) _settings->deadband = _server.arg("dband").toFloat();
     if (_server.hasArg("safeAllow")) _settings->safetyAllowance = _server.arg("safeAllow").toFloat();
     if (_server.hasArg("minV")) _settings->minVoltage = _server.arg("minV").toFloat();
     if (_server.hasArg("maxV")) _settings->maxVoltage = _server.arg("maxV").toFloat();
