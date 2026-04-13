@@ -149,9 +149,14 @@ void loop() {
     state.airVolume = state.pressure * (float)settings.tankVolume;
 
     // --- TRACK 2: VISUAL SIMULATION (PID) ---
-    pid.setTunings(settings.kp, settings.ki, settings.kd);
-    pid.setOutputLimits(0.0f, 100.0f); // Display is 0-100%
-    state.displayOUT = pid.compute(state.displaySP, state.displayPV);
+    if (state.systemActive) {
+      pid.setTunings(settings.kp, settings.ki, settings.kd);
+      pid.setOutputLimits(0.0f, 100.0f); // Display is 0-100%
+      state.displayOUT = pid.compute(state.displaySP, state.displayPV);
+    } else {
+      state.displayOUT = 0.0f;
+      pid.reset(); // Clear integral and history to allow clean start
+    }
 
     // --- TRACK 1: PHYSICAL HARDWARE (BANG-BANG) ---
     float targetBar = (settings.spPercent / 100.0f) * settings.workingMaxBar;
