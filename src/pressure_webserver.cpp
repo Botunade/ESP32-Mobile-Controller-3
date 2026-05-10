@@ -1,4 +1,4 @@
-#include "webserver.h"
+#include "pressure_webserver.h"
 
 const char* DASHBOARD_HTML = R"=====(
 <!DOCTYPE html>
@@ -281,9 +281,26 @@ const char* DASHBOARD_HTML = R"=====(
             <div id="status" class="status-badge">SYSTEM IDLE</div>
         </header>
 
+        <!-- Master Control -->
+        <div class="card" style="margin-bottom: 1.5rem; background: #f0f9ff; border: 1px solid #bae6fd;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin-bottom: 0.25rem; color: #0369a1;">System Master Control</h3>
+                    <p style="font-size: 0.875rem; color: #0c4a6e;">Activate or deactivate the PID pressure regulation loop.</p>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button id="btn-stop" class="btn-update" style="margin-top:0; background: var(--danger); width: auto; padding: 0.75rem 1.5rem;" onclick="toggleSystem(0)">STOP PID</button>
+                    <button id="btn-start" class="btn-update" style="margin-top:0; background: var(--success); width: auto; padding: 0.75rem 1.5rem;" onclick="toggleSystem(1)">START PID</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Warnings -->
         <div id="static-warning" class="error-banner">
             ⚠️ WARNING: PID output is not changing. Please check scaling or sensor connection.
+        </div>
+        <div id="disconnect-warning" class="error-banner" style="display: none; background: #fff1f2; color: #e11d48; border-left: 5px solid #e11d48; margin-top: 1rem;">
+            🛑 CRITICAL: PRESSURE SENSOR DISCONNECTED! Wire broken or sensor unplugged. System Stopped.
         </div>
 
         <!-- Utility Buttons -->
@@ -304,10 +321,24 @@ const char* DASHBOARD_HTML = R"=====(
                 <div class="card-header">Telemetry</div>
                 <div class="metrics-list">
                     <div class="metric-item">
-                        <span class="metric-label">Pressure</span>
+                        <span class="metric-label">User Pressure</span>
                         <div>
                             <span id="pressure" class="metric-value" style="color: var(--primary);">0.0</span>
                             <span class="metric-unit">BAR</span>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">System Pressure</span>
+                        <div>
+                            <span id="rawPressure" class="metric-value" style="color: var(--text-muted); font-size: 1rem;">0.00</span>
+                            <span class="metric-unit">BAR</span>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">PV Percentage</span>
+                        <div>
+                            <span id="pressure-percent" class="metric-value" style="color: var(--primary);">0</span>
+                            <span class="metric-unit">%</span>
                         </div>
                     </div>
                     <div class="metric-item">
@@ -315,6 +346,13 @@ const char* DASHBOARD_HTML = R"=====(
                         <div>
                             <span id="setpoint-display" class="metric-value">0.0</span>
                             <span class="metric-unit">BAR</span>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">SP Percentage</span>
+                        <div>
+                            <span id="setpoint-percent" class="metric-value">0</span>
+                            <span class="metric-unit">%</span>
                         </div>
                     </div>
                     <div class="metric-item">
@@ -329,6 +367,13 @@ const char* DASHBOARD_HTML = R"=====(
                         <div>
                             <span id="voltage" class="metric-value" style="color: var(--text-muted);">0.00</span>
                             <span class="metric-unit">V</span>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Loop Current</span>
+                        <div>
+                            <span id="currentMA" class="metric-value" style="color: #f59e0b;">4.00</span>
+                            <span class="metric-unit">mA</span>
                         </div>
                     </div>
                 </div>
@@ -360,17 +405,18 @@ const char* DASHBOARD_HTML = R"=====(
                         </div>
                     </div>
                     <div class="metric-item">
-                        <span class="metric-label">PID Raw Output</span>
+                        <span class="metric-label">Valve Duty Cycle</span>
                         <div>
-                            <span id="pidOut" class="metric-value" style="color: var(--text-muted); font-size: 1rem;">0.00</span>
-                            <span class="metric-unit">V</span>
+                            <span id="pidOut" class="metric-value" style="color: var(--text-muted); font-size: 1rem;">10.00</span>
+                            <span class="metric-unit">%</span>
                         </div>
                     </div>
                     <div class="metric-item">
-                        <span class="metric-label">Resampled Scale</span>
-                        <div>
-                            <span id="scaled3v3" class="metric-value" style="color: #10b981; font-weight: bold; font-size: 1rem;">0.00</span>
-                            <span class="metric-unit">V (0.66-3.3)</span>
+                        <span class="metric-label">PID (P | I | D)</span>
+                        <div style="font-size: 0.9rem; font-weight: 600;">
+                            <span id="pidP" style="color: #ef4444;">0.0</span> | 
+                            <span id="pidI" style="color: #f59e0b;">0.0</span> | 
+                            <span id="pidD" style="color: #0ea5e9;">0.0</span>
                         </div>
                     </div>
                 </div>
@@ -415,17 +461,20 @@ const char* DASHBOARD_HTML = R"=====(
                     <input type="number" id="tankVol" step="0.1" max="8">
                 </div>
                 <div class="input-group">
-                    <label for="kp">Proportional (Kp)</label>
-
-                    <input type="number" id="kp" step="0.1">
+                    <label for="bandPerc">Control Band (%)</label>
+                    <input type="number" id="bandPerc" step="1" value="20">
                 </div>
                 <div class="input-group">
-                    <label for="ki">Integral (Ki)</label>
-                    <input type="number" id="ki" step="0.1">
+                    <label for="minOn">Min Supply (ms)</label>
+                    <input type="number" id="minOn" step="100" value="2000">
                 </div>
                 <div class="input-group">
-                    <label for="kd">Derivative (Kd)</label>
-                    <input type="number" id="kd" step="0.01">
+                    <label for="minOff">Exh. Pause (ms)</label>
+                    <input type="number" id="minOff" step="100" value="1000">
+                </div>
+                <div class="input-group">
+                    <label for="exBurst">Exh. Burst (ms)</label>
+                    <input type="number" id="exBurst" step="100" value="500">
                 </div>
                 <div class="input-group">
                     <label for="setpoint">Setpoint (BAR)</label>
@@ -473,9 +522,12 @@ const char* DASHBOARD_HTML = R"=====(
                     <input type="number" id="aMaxV" step="0.01">
                 </div>
             </div>
-            <div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); display: flex; justify-content: space-around; font-size: 0.9rem;">
-                <div><span style="color: var(--text-muted);">Live Raw:</span> <span id="liveSensorV" style="font-weight: bold; color: var(--primary);">0.00</span> V</div>
-                <div><span style="color: var(--text-muted);">Live Acc:</span> <span id="liveScaledV" style="font-weight: bold; color: #10b981;">0.00</span> V</div>
+            <div style="margin-top: 1rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; justify-content: space-around; font-size: 0.9rem;">
+                    <div><span style="color: var(--text-muted);">Live Raw:</span> <span id="liveSensorV" style="font-weight: bold; color: var(--primary);">0.00</span> V</div>
+                    <div><span style="color: var(--text-muted);">Live Acc:</span> <span id="liveScaledV" style="font-weight: bold; color: #10b981;">0.00</span> V</div>
+                </div>
+                <button onclick="setZero()" style="background: #64748b; color: white; border: none; padding: 0.5rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600;">CALIBRATE: Set Current as 0 BAR</button>
             </div>
             
             <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border);">
@@ -589,10 +641,14 @@ const char* DASHBOARD_HTML = R"=====(
                 const data = await response.json();
                 
                 // Update text elements
-                document.getElementById('pressure').innerText = data.pressure.toFixed(2);
+                document.getElementById('pressure').innerText = data.displayP.toFixed(2);
+                document.getElementById('rawPressure').innerText = data.pressure.toFixed(2);
+                document.getElementById('pressure-percent').innerText = (data.pressurePercent || 0).toFixed(1);
                 document.getElementById('voltage').innerText = data.voltage.toFixed(2);
                 document.getElementById('setpoint-display').innerText = data.setpoint.toFixed(2);
+                document.getElementById('setpoint-percent').innerText = (data.setpointPercent || 0).toFixed(1);
                 document.getElementById('airVolume').innerText = (data.airVolume || 0).toFixed(2);
+                document.getElementById('currentMA').innerText = (data.currentMA || 4.00).toFixed(2);
                 
                 // Diagnostics
                 document.getElementById('rawADC').innerText = Math.round(data.rawADC);
@@ -603,14 +659,35 @@ const char* DASHBOARD_HTML = R"=====(
                 if (document.getElementById('liveSensorV')) document.getElementById('liveSensorV').innerText = data.sensorV.toFixed(2);
                 if (document.getElementById('liveScaledV')) document.getElementById('liveScaledV').innerText = (data.scaled3v3 || 0).toFixed(2);
                 
-                // Update Status Badge
+                // PID Breakdown
+                document.getElementById('pidP').innerText = data.pidP.toFixed(1);
+                document.getElementById('pidI').innerText = data.pidI.toFixed(1);
+                document.getElementById('pidD').innerText = data.pidD.toFixed(1);
+                
+                // Update Status Badge and Master Buttons
                 const statusEl = document.getElementById('status');
+                const btnStart = document.getElementById('btn-start');
+                const btnStop = document.getElementById('btn-stop');
+                
                 if(data.active) {
-                    statusEl.innerText = 'SYSTEM RUNNING';
+                    const states = ["IDLE", "SUPPLYING", "EXHAUSTING"];
+                    statusEl.innerText = states[data.cState] || "RUNNING";
                     statusEl.className = 'status-badge running';
+                    btnStart.style.opacity = '0.5';
+                    btnStart.style.cursor = 'not-allowed';
+                    btnStart.disabled = true;
+                    btnStop.style.opacity = '1';
+                    btnStop.style.cursor = 'pointer';
+                    btnStop.disabled = false;
                 } else {
                     statusEl.innerText = 'SYSTEM IDLE';
                     statusEl.className = 'status-badge';
+                    btnStart.style.opacity = '1';
+                    btnStart.style.cursor = 'pointer';
+                    btnStart.disabled = false;
+                    btnStop.style.opacity = '0.5';
+                    btnStop.style.cursor = 'not-allowed';
+                    btnStop.disabled = true;
                 }
 
                 // Solenoid Button State Update
@@ -631,6 +708,10 @@ const char* DASHBOARD_HTML = R"=====(
 
                 // Warnings
                 document.getElementById('static-warning').style.display = data.isStatic ? 'block' : 'none';
+                document.getElementById('disconnect-warning').style.display = !data.sensorConnected ? 'block' : 'none';
+                if (!data.sensorConnected) {
+                    document.getElementById('pressure').innerText = "DISC";
+                }
 
                 // Update Chart Arrays
                 dataHistory.push(data.pressure);
@@ -649,9 +730,10 @@ const char* DASHBOARD_HTML = R"=====(
                 // Populate Form (only if empty to not overwrite user typing)
                 if (!document.getElementById('tankVol').value) {
                     document.getElementById('tankVol').value = data.tankVol;
-                    document.getElementById('kp').value = data.kp;
-                    document.getElementById('ki').value = data.ki;
-                    document.getElementById('kd').value = data.kd;
+                    document.getElementById('bandPerc').value = data.bandPerc;
+                    document.getElementById('minOn').value = data.minOn;
+                    document.getElementById('minOff').value = data.minOff;
+                    document.getElementById('exBurst').value = data.exBurst || 500;
                     document.getElementById('setpoint').value = data.setpoint;
                     document.getElementById('safeAllow').value = data.safeAllow;
                     document.getElementById('minV').value = data.minV;
@@ -670,6 +752,13 @@ const char* DASHBOARD_HTML = R"=====(
                 document.getElementById('active-ssid').innerText = data.wifiSSID || 'NONE';
                 document.getElementById('active-tank').innerText = data.tankVol + " L";
             } catch (e) { console.error('Data fetch failed', e); }
+        }
+
+        async function toggleSystem(active) {
+            try {
+                await fetch('/update?active=' + active);
+                fetchData(); // Immediate refresh
+            } catch(e) { console.error('Failed to toggle system', e); }
         }
 
         let isUpdatingSolenoid = false; // Flag to prevent jitter during fetch
@@ -711,9 +800,10 @@ const char* DASHBOARD_HTML = R"=====(
             try {
                 const params = new URLSearchParams({
                     tankVol: document.getElementById('tankVol').value,
-                    kp: document.getElementById('kp').value,
-                    ki: document.getElementById('ki').value,
-                    kd: document.getElementById('kd').value,
+                    bandPerc: document.getElementById('bandPerc').value,
+                    minOn: document.getElementById('minOn').value,
+                    minOff: document.getElementById('minOff').value,
+                    exBurst: document.getElementById('exBurst').value,
                     setpoint: document.getElementById('setpoint').value,
                     safeAllow: document.getElementById('safeAllow').value,
                     minV: document.getElementById('minV').value,
@@ -749,6 +839,17 @@ const char* DASHBOARD_HTML = R"=====(
                     btn.innerText = originalText;
                     btn.style.background = '';
                 }, 2000);
+            }
+        }
+
+        async function setZero() {
+            const currentV = document.getElementById('liveSensorV').innerText;
+            if(confirm("Are you sure you want to set " + currentV + "V as the new 0 BAR baseline? \n\nEnsure the vessel is vented to atmosphere first.")) {
+                try {
+                    await fetch('/update?setZero=1');
+                    alert("Calibration updated. Device is rebooting.");
+                    location.reload();
+                } catch(e) { alert("Failed to calibrate"); }
             }
         }
 
@@ -826,11 +927,25 @@ void PressureWebServer::handleData() {
     doc["dacValue"] = _state->dacValue;
     doc["pidOut"] = _state->pidOutput;
     doc["isStatic"] = _state->isStatic;
+    doc["sensorConnected"] = _state->sensorConnected;
     doc["active"] = _state->systemActive;
     doc["solenoid"] = _state->solenoidState;
     doc["airVolume"] = _state->airVolume;
     doc["scaled3v3"] = _state->scaledTo3v3;
+    doc["currentMA"] = _state->controlCurrent;
+    doc["displayP"] = _state->displayPressure;
+    doc["cState"] = _state->controlState;
+    
+    // PID Components Synchronization
+    doc["pidP"] = _state->pTerm;
+    doc["pidI"] = _state->iTerm;
+    doc["pidD"] = _state->dTerm;
+
     doc["tankVol"] = _settings->tankVolume;
+    doc["bandPerc"] = _settings->controlBandPercent;
+    doc["minOn"] = _settings->minOnTimeMS;
+    doc["minOff"] = _settings->minOffTimeMS;
+    doc["exBurst"] = _settings->exhaustBurstMS;
     doc["kp"] = _settings->kp;
     doc["ki"] = _settings->ki;
     doc["kd"] = _settings->kd;
@@ -845,6 +960,8 @@ void PressureWebServer::handleData() {
     doc["aMinV"] = _settings->accuracyMinV;
     doc["aMaxV"] = _settings->accuracyMaxV;
     doc["wifiSSID"] = _settings->wifiSSID;
+
+    doc["setpointPercent"] = _state->setpointPercent;
 
     String json;
     serializeJson(doc, json);
@@ -865,14 +982,28 @@ void PressureWebServer::handleUpdate() {
         Serial.print("Local Solenoid Command: ");
         Serial.println(_state->solenoidState ? "OPEN" : "CLOSED");
     }
-    if (_server.hasArg("kp")) _settings->kp = _server.arg("kp").toFloat();
-    if (_server.hasArg("ki")) _settings->ki = _server.arg("ki").toFloat();
-    if (_server.hasArg("kd")) _settings->kd = _server.arg("kd").toFloat();
-    if (_server.hasArg("setpoint")) _settings->setpoint = _server.arg("setpoint").toFloat();
+    if (_server.hasArg("active")) {
+        _state->systemActive = (_server.arg("active") == "1");
+        Serial.print("Local System Command: ");
+        Serial.println(_state->systemActive ? "START" : "STOP");
+    }
+    if (_server.hasArg("bandPerc")) _settings->controlBandPercent = _server.arg("bandPerc").toFloat();
+    if (_server.hasArg("minOn")) _settings->minOnTimeMS = _server.arg("minOn").toInt();
+    if (_server.hasArg("minOff")) _settings->minOffTimeMS = _server.arg("minOff").toInt();
+    if (_server.hasArg("exBurst")) _settings->exhaustBurstMS = _server.arg("exBurst").toInt();
+    if (_server.hasArg("setpoint")) {
+        _settings->setpoint = _server.arg("setpoint").toFloat();
+        Serial.printf("[WEB] Setpoint updated: %.2f BAR\n", _settings->setpoint);
+    }
     if (_server.hasArg("safeAllow")) _settings->safetyAllowance = _server.arg("safeAllow").toFloat();
     if (_server.hasArg("minV")) _settings->minVoltage = _server.arg("minV").toFloat();
     if (_server.hasArg("maxV")) _settings->maxVoltage = _server.arg("maxV").toFloat();
     
+    if (_server.hasArg("setZero")) {
+        _settings->sensorMinV = _state->sensorVoltage;
+        Serial.printf("[CALIB] Software Zero Set: %.3fV\n", _settings->sensorMinV);
+    }
+
     if (_server.hasArg("wifiSSID")) {
         String ssid = _server.arg("wifiSSID");
         strncpy(_settings->wifiSSID, ssid.c_str(), sizeof(_settings->wifiSSID) - 1);

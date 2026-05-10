@@ -30,15 +30,19 @@ const elPingPing = document.getElementById('pingPing');
 const elSystemActiveBadge = document.getElementById('systemActiveBadge');
 const elStaticWarning = document.getElementById('staticWarning');
 const elLastUpdated = document.getElementById('lastUpdated');
+let lastSeenTimestamp = 0; // Track device heartbeat
 
 // DOM Elements - Telemetry Values
 const valPressure = document.getElementById('valPressure');
 const valSetpoint = document.getElementById('valSetpoint');
 const valVoltage = document.getElementById('valVoltage');
 const valPid = document.getElementById('valPid');
+const barPid = document.getElementById('barPid');
 const barPressure = document.getElementById('barPressure');
 const barVoltage = document.getElementById('barVoltage');
 const valAirVolume = document.getElementById('valAirVolume');
+const valCurrent = document.getElementById('valCurrent');
+const barCurrent = document.getElementById('barCurrent');
 
 // Chart Setup
 const ctx = document.getElementById('pressureChart').getContext('2d');
@@ -166,10 +170,14 @@ onValue(stateRef, (snapshot) => {
     }
     // --------------------------------------------------------
 
-    // Update Readings
     if (data.pressure !== undefined) {
-        valPressure.innerText = _f(data.pressure, 2);
-        barPressure.style.width = `${Math.min(100, Math.max(0, data.pressurePercent || 0))}%`;
+        if (valPressure) valPressure.innerText = _f(data.pressure, 2);
+        if (document.getElementById('valPressurePercent')) {
+            document.getElementById('valPressurePercent').innerText = _f(data.pressurePercent || 0, 1);
+        }
+        if (barPressure) {
+            barPressure.style.width = `${Math.min(100, Math.max(0, data.pressurePercent || 0))}%`;
+        }
 
         // Update Chart
         const nowStr = new Date().toLocaleTimeString();
@@ -202,7 +210,46 @@ onValue(stateRef, (snapshot) => {
     }
 
     if (data.pidOutput !== undefined) {
-        valPid.innerText = _f(data.pidOutput, 2);
+        if (valPid) valPid.innerText = _f(data.pidOutput, 1);
+        if (barPid) {
+            barPid.style.width = `${Math.min(100, Math.max(0, data.pidOutput))}%`;
+        }
+    }
+
+    if (data.currentMA !== undefined) {
+        if (valCurrent) valCurrent.innerText = _f(data.currentMA, 2);
+        if (barCurrent) {
+            // Scale 4-20mA to 0-100%
+            const currentPercent = ((data.currentMA - 4) / 16) * 100;
+            barCurrent.style.width = `${Math.min(100, Math.max(0, currentPercent))}%`;
+        }
+    }
+
+    // Update Setpoint
+    if (data.setpoint !== undefined) {
+        valSetpoint.innerText = _f(data.setpoint, 2);
+    }
+
+    // Update Setpoint Percent
+    if (data.setpointPercent !== undefined) {
+        if (document.getElementById('valSetpointPercent')) {
+            document.getElementById('valSetpointPercent').innerText = _f(data.setpointPercent, 1);
+        }
+    }
+
+    // --- DYNAMIC SYNC MONITOR ---
+    // This constantly compares the real hardware state (from ESP32) 
+    // vs the cloud settings to verify they are perfectly merged.
+    const cloudSetpoint = parseFloat(inputSetpoint.value) || 0;
+    const hardwareSetpoint = data.setpoint || 0;
+    
+    // Check if they match within 0.01 margin
+    if (Math.abs(cloudSetpoint - hardwareSetpoint) < 0.01) {
+        syncConfigBadge.innerText = "✓ SYNCED WITH LCD";
+        syncConfigBadge.className = "text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 shadow-sm";
+    } else {
+        syncConfigBadge.innerText = "⚠ SYNC PENDING...";
+        syncConfigBadge.className = "text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200 animate-pulse";
     }
 
     // Warnings
@@ -314,3 +361,30 @@ btnRefreshSettings.addEventListener('click', fetchSettings);
 
 // Initial Load
 fetchSettings();
+
+// --- OFFLINE WATCHDOG ---
+// Checks if the device has sent a heartbeat recently
+setInterval(() => {
+    if (lastSeenTimestamp === 0) return; // No data received yet
+
+    const now = Date.now();
+    const drift = now - lastSeenTimestamp;
+    
+    if (drift > 15000) { // 15 seconds timeout
+        elConnectionStatus.innerHTML = `
+            <span class="relative flex h-3 w-3">
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+            </span>
+            <span class="text-rose-700">OFFLINE (POWER OFF)</span>
+        `;
+        elConnectionStatus.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-50 text-sm font-semibold border border-rose-100 shadow-sm transition-all animate-pulse';
+        
+        // Zero out readings to indicate stale state
+        valPressure.innerText = "0.00";
+        valPressure.className = "text-4xl font-black text-slate-300 tracking-tighter tabular-nums";
+        barPressure.style.width = "0%";
+    } else {
+        // Restore style if back online
+        valPressure.className = "text-4xl font-black text-slate-900 tracking-tighter tabular-nums";
+    }
+}, 5000);

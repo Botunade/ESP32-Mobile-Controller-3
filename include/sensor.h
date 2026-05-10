@@ -11,6 +11,7 @@ public:
     float readPressure(float minV, float maxV, float maxBar, float workingMaxBar, float accuracyMinV, float accuracyMaxV, float& normalized, float& scaled3v3);
     float getRawVoltage();
     float getFilteredADC() { return _filteredADC; }
+    bool isConnected() { return getRawVoltage() > 0.1f; }
 
 private:
     int _pin;

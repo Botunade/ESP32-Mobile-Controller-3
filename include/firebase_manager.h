@@ -3,8 +3,9 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <LittleFS.h>
 #include <Firebase_ESP_Client.h>
-#include "webserver.h"
+#include "pressure_webserver.h"
 
 // Internal includes for Firebase Manager only
 // We will include addons in the CPP file to avoid multiple definition errors
@@ -17,6 +18,7 @@ public:
     FirebaseManager();
     void begin(SystemSettings* settings, SystemState* state);
     void handle();
+    void triggerUpload();
 
 private:
     FirebaseData fbdo;
@@ -28,7 +30,8 @@ private:
 
     bool _firebaseReady;
     unsigned long _lastUploadTime;
-    const unsigned long UPLOAD_INTERVAL = 1000; // 1 second
+    unsigned long _lastStartReceived;
+    const unsigned long UPLOAD_INTERVAL = 5000; // Increased to 5s to reduce loop stalling
 
     void setupFirebase();
     void uploadState();

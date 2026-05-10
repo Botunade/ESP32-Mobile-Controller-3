@@ -1,7 +1,7 @@
 #include "sensor.h"
 
 PressureSensor::PressureSensor(int pin, int samples)
-    : _pin(pin), _numSamples(samples), _alpha(0.1f), _filteredADC(0.0f), _bufferIndex(0), _bufferSum(0.0f) {
+    : _pin(pin), _numSamples(samples), _alpha(0.05f), _filteredADC(0.0f), _bufferIndex(0), _bufferSum(0.0f) {
     _movingAvgBuffer = new float[_numSamples];
     for (int i = 0; i < _numSamples; i++) {
         _movingAvgBuffer[i] = 0.0f;
@@ -35,7 +35,6 @@ float PressureSensor::readPressure(float minV, float maxV, float maxBar, float w
     float currentADC = (float)sum / _numSamples;
 
     // 2. Moving Average Filter (Exponential Smoothing)
-    // We use exponential smoothing as the primary filter for a 4-20mA stable signal
     _filteredADC = (_alpha * currentADC) + ((1.0f - _alpha) * _filteredADC);
 
     // 3. Conversion Chain
@@ -43,19 +42,18 @@ float PressureSensor::readPressure(float minV, float maxV, float maxBar, float w
     float pressureRaw = voltageToPressure(voltage, minV, maxV, maxBar);
     
     // Normalized calculation (0-1.0 over working range)
-    normalized = pressureRaw / workingMaxBar;
+    normalized = pressureRaw / (workingMaxBar > 0 ? workingMaxBar : 1.0f);
     if (normalized > 1.0f) normalized = 1.0f;
     if (normalized < 0.0f) normalized = 0.0f;
 
-    // Accuracy Scaling: Map 0-1.0 (normalized) to Accuracy Range (e.g. 0.66V - 3.3V)
-    // This maps the used portion of the sensor to the full monitor/control window.
+    // Accuracy Scaling for monitor/control window
     scaled3v3 = accuracyMinV + (normalized * (accuracyMaxV - accuracyMinV));
 
     return pressureRaw;
 }
 
 float PressureSensor::adcToVoltage(float adcValue) {
-    // 12-bit ADC (0-4095) for 3.3V range
+    // 12-bit ADC (0-4095) for ~3.3V range with 11dB attenuation
     return (adcValue / 4095.0f) * 3.3f;
 }
 
@@ -64,13 +62,41 @@ float PressureSensor::getRawVoltage() {
 }
 
 float PressureSensor::voltageToPressure(float voltage, float minV, float maxV, float maxBar) {
-    // Linear interpolation for 4-20mA signal
-    // pressure = ((V - Vmin) / (Vmax - Vmin)) * Pmax
-    float pressure = ((voltage - minV) / (maxV - minV)) * maxBar;
+    // ================================================================
+    // HARDCODED LINEAR SCALING (0.00 - 12.00 BAR)
+    // ================================================================
+    // Theorized Profile: 0.31V Zero @ 77.5 ohm resistor (4mA-20mA)
+    //
+    // BAR    | VOLTAGE  | ADC (12b)| Note
+    // ------------------------------------------------------------
+    // 0.00   | 0.3100 V | 385      | Zero Baseline (4mA)
+    // 0.05   | 0.3152 V | 391      | (Step Resolution)
+    // 1.00   | 0.4133 V | 513      | 
+    // 3.00   | 0.6200 V | 769      | 
+    // 6.00   | 0.9300 V | 1154     | (Midpoint)
+    // 9.00   | 1.2400 V | 1539     | 
+    // 12.00  | 1.5500 V | 1923     | (Full Scale)
+    // ================================================================
     
-    // Clamping
+    // Physical Constants
+    const float V_ZERO = 0.3100f;
+    const float V_SPAN = 1.2400f; // Total span for 12.0 Bar (16mA)
+    const float MAX_P  = 12.000f;
+
+    // Boundary check (ignore noise below zero)
+    if (voltage <= V_ZERO) return 0.0f;
+
+    // Linear Conversion: P = (V - V_zero) * (MaxP / V_span)
+    float rawPressure = (voltage - V_ZERO) * (MAX_P / V_SPAN);
+    
+    // --- STEPPED RESOLUTION (0.05 BAR) ---
+    // This snaps the output to the nearest 0.05 bar point.
+    // Every 0.05 Bar increment is sensed as a ~5.16mV change.
+    float pressure = round(rawPressure * 100.0f) / 100.0f;
+    
+    // Hard Limit to 12.0 Bar
+    if (pressure > MAX_P) pressure = MAX_P;
     if (pressure < 0) pressure = 0;
-    if (pressure > maxBar) pressure = maxBar;
     
     return pressure;
 }

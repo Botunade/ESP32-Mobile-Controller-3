@@ -111,48 +111,67 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
             <!-- Pressure -->
-            <div
-                class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
-                <div
-                    class="absolute -right-6 -top-6 w-24 h-24 bg-primary-50 rounded-full group-hover:scale-150 transition-transform duration-500 ease-in-out">
-                </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
                 <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider relative z-10">Pressure</h3>
                 <div class="mt-2 flex items-baseline gap-2 relative z-10">
-                    <span id="valPressure"
-                        class="text-4xl font-black text-slate-900 tracking-tighter tabular-nums transition-all">--.--</span>
+                    <span id="valPressure" class="text-4xl font-black text-slate-900 tracking-tighter tabular-nums transition-all">--.--</span>
                     <span class="text-lg font-medium text-slate-500">BAR</span>
                 </div>
+                <div class="mt-1 flex items-center gap-1">
+                    <span id="valPressurePercent" class="text-sm font-bold text-primary-600">--</span>
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-tight">Cap.</span>
+                </div>
                 <div class="w-full bg-slate-100 rounded-full h-1.5 mt-4 relative z-10 overflow-hidden">
-                    <div id="barPressure" class="bg-primary-500 h-1.5 rounded-full transition-all duration-300 ease-out"
-                        style="width: 0%"></div>
+                    <div id="barPressure" class="bg-primary-500 h-1.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
                 </div>
             </div>
 
             <!-- Setpoint Display -->
-            <div
-                class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
-                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider relative z-10">Target Setpoint
-                </h3>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider relative z-10">Target Setpoint</h3>
                 <div class="mt-2 flex items-baseline gap-2 relative z-10">
-                    <span id="valSetpoint"
-                        class="text-4xl font-black text-slate-900 tracking-tighter tabular-nums transition-all">--.--</span>
+                    <span id="valSetpoint" class="text-4xl font-black text-slate-900 tracking-tighter tabular-nums transition-all">--.--</span>
                     <span class="text-lg font-medium text-slate-500">BAR</span>
+                </div>
+                <div class="mt-1 flex items-center gap-1">
+                    <span id="valSetpointPercent" class="text-sm font-bold text-indigo-600">--</span>
+                    <span class="text-xs font-medium text-slate-400 uppercase tracking-tight">Range</span>
                 </div>
             </div>
 
             <!-- Control Voltage -->
-            <div
-                class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
-                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider relative z-10">Control Volts
-                </h3>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider relative z-10">Control Volts</h3>
                 <div class="mt-2 flex items-baseline gap-2 relative z-10">
-                    <span id="valVoltage"
-                        class="text-4xl font-black text-slate-900 tracking-tighter tabular-nums transition-all">-.--</span>
+                    <span id="valVoltage" class="text-4xl font-black text-slate-900 tracking-tighter tabular-nums transition-all">-.--</span>
                     <span class="text-lg font-medium text-slate-500">V</span>
                 </div>
                 <div class="w-full bg-slate-100 rounded-full h-1.5 mt-4 relative z-10 overflow-hidden">
-                    <div id="barVoltage" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-300 ease-out"
-                        style="width: 0%"></div>
+                    <div id="barVoltage" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Valve Output (%) -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider relative z-10">Valve Output</h3>
+                <div class="mt-2 flex items-baseline gap-2 relative z-10">
+                    <span id="valPid" class="text-4xl font-black text-slate-900 tracking-tighter tabular-nums transition-all">--.-</span>
+                    <span class="text-lg font-medium text-slate-500">%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 mt-4 relative z-10 overflow-hidden">
+                    <div id="barPid" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Loop Current (mA) -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider relative z-10">Loop Current</h3>
+                <div class="mt-2 flex items-baseline gap-2 relative z-10">
+                    <span id="valCurrent" class="text-4xl font-black text-slate-900 tracking-tighter tabular-nums transition-all">--.--</span>
+                    <span class="text-lg font-medium text-slate-500">mA</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 mt-4 relative z-10 overflow-hidden">
+                    <div id="barCurrent" class="bg-amber-500 h-1.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
                 </div>
             </div>
 
