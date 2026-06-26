@@ -8,10 +8,10 @@ static char keys[ROWS][COLS] = {
   {'7','8','9','C'},
   {'*','0','#','D'}
 };
-// Rows: 13, 19, 14, 27 (Remapped 12 -> 19 to avoid strapping)
-// Cols: 26, 33, 32, 25 (Remapped 15 -> 25 to avoid strapping)
-static byte rowPins[ROWS] = {13, 19, 14, 27};
-static byte colPins[COLS] = {26, 33, 32, 25};
+// Rows: 13, 12, 14, 27
+// Cols: 26, 33, 32, 15
+static byte rowPins[ROWS] = {13, 12, 14, 27};
+static byte colPins[COLS] = {26, 33, 32, 15};
 
 MenuSystem::MenuSystem()
     : _lcd(0x27, 20, 4),

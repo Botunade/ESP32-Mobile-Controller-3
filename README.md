@@ -18,9 +18,7 @@ A comprehensive industrial-grade pressure control system built on the ESP32. Thi
 | Component | Pin(s) | Notes |
 |-----------|--------|-------|
 | **20x4 LCD** | **SCL: 22, SDA: 21** | I2C Address: 0x27 |
-| **4x4 Keypad** | **R: 13, 19, 14, 27** | **C: 26, 33, 32, 25** |
-
-*Note: Keypad pins 12 and 15 were remapped to 19 and 25 to avoid ESP32 strapping pin boot conflicts.*
+| **4x4 Keypad** | **R: 13, 12, 14, 27** | **C: 26, 33, 32, 15** |
 
 ---
 
