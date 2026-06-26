@@ -75,6 +75,7 @@ void loadSettings() {
     settings.autoTuningEnabled = preferences.getBool("autoTune", false); // Default to OFF
     settings.tuningStep = preferences.getFloat("tuneStep", 0.01f);
     settings.valveFloor = preferences.getFloat("vFloor", 0.0f); // 0.0 = Needs Calibration
+    settings.simulationMode = preferences.getBool("simMode", true); // Default to simulation for safety
     preferences.end();
 }
 
@@ -104,6 +105,7 @@ void saveSettings() {
     preferences.putBool("autoTune", settings.autoTuningEnabled);
     preferences.putFloat("tuneStep", settings.tuningStep);
     preferences.putFloat("vFloor", settings.valveFloor);
+    preferences.putBool("simMode", settings.simulationMode);
     preferences.end();
 }
 
@@ -254,35 +256,71 @@ void controlLoopTask(void* pvParameters) {
         }
 
         // ====================================================================
-        // 1. DIGITAL TRANSMITTER SIMULATION (FEEDFORWARD ONLY)
+        // 1. SENSOR INTEGRATION (HARDWARE OR SIMULATION)
         // ====================================================================
-        if (state.systemActive) {
-            // Smoothly move towards target setpoint
-            float riseSpeed = 0.02f; 
-            state.pressure = state.pressure + (riseSpeed * (settings.setpoint - state.pressure));
-            
-            // Add tiny industrial signal noise for dashboard realism
-            float noise = ((float)random(-3, 4) / 1000.0f); 
-            state.pressure += noise;
-            if (state.pressure < 0.0f) state.pressure = 0.0f;
-        } else {
-            // Decay pressure when stopped
-            if (state.pressure > 0.02f) {
-                state.pressure = state.pressure - (0.05f * state.pressure);
+        if (settings.simulationMode) {
+            // DIGITAL TRANSMITTER SIMULATION (FEEDFORWARD ONLY)
+            if (state.systemActive) {
+                // Smoothly move towards target setpoint
+                float riseSpeed = 0.02f;
+                state.pressure = state.pressure + (riseSpeed * (settings.setpoint - state.pressure));
+
+                // Add tiny industrial signal noise for dashboard realism
+                float noise = ((float)random(-3, 4) / 1000.0f);
+                state.pressure += noise;
+                if (state.pressure < 0.0f) state.pressure = 0.0f;
             } else {
-                state.pressure = 0.0f;
+                // Decay pressure when stopped
+                if (state.pressure > 0.02f) {
+                    state.pressure = state.pressure - (0.05f * state.pressure);
+                } else {
+                    state.pressure = 0.0f;
+                }
             }
-        }
-        state.sensorConnected = true; // Guard bypass
+            state.sensorConnected = true; // Simulated always "connected"
 
-        // Scale percentages for display variables
-        if (settings.workingMaxBar > 0) {
-            state.pressurePercent = (state.pressure / settings.workingMaxBar) * 100.0f;
-            state.setpointPercent = (settings.setpoint / settings.workingMaxBar) * 100.0f;
-        }
-        state.airVolume = state.pressure * (float)settings.tankVolume;
+            // Calculate simulated raw sensor voltage and raw ADC based on a 4-20mA sensor profile
+            const float V_ZERO = 0.3100f;
+            const float V_SPAN = 1.2400f;
+            const float MAX_P  = 12.000f;
+            state.sensorVoltage = V_ZERO + (state.pressure * V_SPAN / MAX_P);
+            if (state.sensorVoltage < 0.0f) state.sensorVoltage = 0.0f;
+            state.rawADC = (state.sensorVoltage / 3.3f) * 4095.0f;
 
-        // Calculate normalized pressure and scaledTo3v3 for displays/web
+        } else {
+            // ACTUAL HARDWARE READ
+            state.pressure = sensor.readPressure(
+                settings.sensorMinV, settings.sensorMaxV, settings.sensorMaxBar, settings.workingMaxBar,
+                settings.accuracyMinV, settings.accuracyMaxV, state.normalizedPressure, state.scaledTo3v3
+            );
+            state.sensorConnected = sensor.isConnected();
+            state.sensorVoltage = sensor.getRawVoltage();
+            state.rawADC = sensor.getFilteredADC();
+        }
+
+        // Manual Calibration / Ramp Test logic
+        static bool calibrationRunning = false;
+        static unsigned long rampStart = 0;
+
+        if (state.forceCalibration) {
+            if (!calibrationRunning) {
+                rampStart = millis();
+                calibrationRunning = true;
+            }
+
+            unsigned long elapsed = millis() - rampStart;
+            if (elapsed < 5000) {
+                state.pressure = (float)elapsed * (settings.setpoint / 5000.0f);
+            } else {
+                state.pressure = settings.setpoint;
+                state.forceCalibration = false;
+                calibrationRunning = false;
+            }
+        } else {
+            calibrationRunning = false;
+        }
+
+        // --- Recalculate derived metrics (Ensures calibration/simulation/hardware are all consistent) ---
         if (settings.workingMaxBar > 0) {
             state.normalizedPressure = state.pressure / settings.workingMaxBar;
         } else {
@@ -290,8 +328,23 @@ void controlLoopTask(void* pvParameters) {
         }
         if (state.normalizedPressure > 1.0f) state.normalizedPressure = 1.0f;
         if (state.normalizedPressure < 0.0f) state.normalizedPressure = 0.0f;
-
         state.scaledTo3v3 = settings.accuracyMinV + (state.normalizedPressure * (settings.accuracyMaxV - settings.accuracyMinV));
+
+        // Sync raw metrics during calibration ramp for dashboard realism
+        if (state.forceCalibration) {
+            const float V_ZERO = 0.3100f;
+            const float V_SPAN = 1.2400f;
+            const float MAX_P  = 12.000f;
+            state.sensorVoltage = V_ZERO + (state.pressure * V_SPAN / MAX_P);
+            state.rawADC = (state.sensorVoltage / 3.3f) * 4095.0f;
+        }
+
+        // Scale percentages for display variables
+        if (settings.workingMaxBar > 0) {
+            state.pressurePercent = (state.pressure / settings.workingMaxBar) * 100.0f;
+            state.setpointPercent = (settings.setpoint / settings.workingMaxBar) * 100.0f;
+        }
+        state.airVolume = state.pressure * (float)settings.tankVolume;
 
         // ====================================================================
         // 2. PID CORE COMPUTATION
@@ -361,15 +414,6 @@ void controlLoopTask(void* pvParameters) {
             state.controlState = 0;
         }
 
-        // Calculate simulated raw sensor voltage and raw ADC based on a 4-20mA sensor profile
-        // V_ZERO = 0.31V, V_SPAN = 1.24V for 12.0 Bar MAX_P
-        const float V_ZERO = 0.3100f;
-        const float V_SPAN = 1.2400f; 
-        const float MAX_P  = 12.000f;
-        
-        state.sensorVoltage = V_ZERO + (state.pressure * V_SPAN / MAX_P);
-        if (state.sensorVoltage < 0.0f) state.sensorVoltage = 0.0f;
-        state.rawADC = (state.sensorVoltage / 3.3f) * 4095.0f;
 
         state.prevError = settings.setpoint - state.pressure;
 
@@ -401,6 +445,8 @@ void controlLoopTask(void* pvParameters) {
                           state.outputState ? "ON" : "OFF", (int)state.pidOutput,
                           state.controlVoltage, state.controlCurrent);
         }
+
+        digitalFollower_update(state, settings);
 
         vTaskDelayUntil(&xLastWakeTime, xSafeFrequency);
         lastSystemActive = state.systemActive; 

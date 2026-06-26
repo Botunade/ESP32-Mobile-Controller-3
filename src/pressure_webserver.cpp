@@ -1123,6 +1123,7 @@ void PressureWebServer::handleData() {
     doc["currentMA"] = _state->controlCurrent;
     doc["displayP"] = _state->displayPressure;
     doc["cState"] = _state->controlState;
+    doc["simMode"] = _settings->simulationMode;
     
     // PID Components Synchronization
     doc["pidP"] = _state->pTerm;
@@ -1195,6 +1196,10 @@ void PressureWebServer::handleUpdate() {
     if (_server.hasArg("safeAllow")) _settings->safetyAllowance = _server.arg("safeAllow").toFloat();
     if (_server.hasArg("minV")) _settings->minVoltage = _server.arg("minV").toFloat();
     if (_server.hasArg("maxV")) _settings->maxVoltage = _server.arg("maxV").toFloat();
+    if (_server.hasArg("simMode")) {
+        _settings->simulationMode = (_server.arg("simMode") == "1");
+        Serial.printf("[WEB] Simulation Mode: %s\n", _settings->simulationMode ? "ENABLED" : "DISABLED");
+    }
     
     if (_server.hasArg("setZero")) {
         _settings->sensorMinV = _state->sensorVoltage;

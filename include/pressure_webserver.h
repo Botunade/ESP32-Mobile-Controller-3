@@ -31,6 +31,7 @@ struct SystemSettings {
     bool autoTuningEnabled; // AUTO or MANUAL mode
     float tuningStep;       // small_step for auto-tuning
     float valveFloor;       // Discovered hardware hiss point (0.0-100.0)
+    bool simulationMode;    // Mock data for testing
 };
 
 struct SystemState {
