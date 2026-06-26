@@ -17,7 +17,7 @@ const int VALVE_CONTROL_PIN = 18;
 // Solenoid Relay Valve: GPIO 5
 const int SOLENOID_PIN = 5;
 // I2C Pins for LCD: SDA = GPIO 21, SCL = GPIO 22 (Default)
-// Keypad Pins: Rows = {13, 12, 14, 27}, Cols = {26, 33, 32, 15}
+// Keypad Pins: Rows = {13, 19, 14, 27}, Cols = {26, 33, 32, 25}
 
 // Global Objects
 PressureSensor sensor(PRESSURE_SENSOR_PIN, 64); // Increased to 64 samples for 0.05 Bar stability
