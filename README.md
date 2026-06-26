@@ -28,8 +28,7 @@ The 4x4 matrix keypad is the primary physical interface for configuring the syst
 
 - **`A` (Home):** Returns to the main telemetry display (Live Pressure, Solenoid, System Status).
 - **`B` (Vessel Size):** Enters the Tank Configuration menu.
-- **`1` (PID Tuning):** Enters the PID Parameters menu (Kp, Ki, Kd edit). *(Remapped from 'C' due to hardware fault)*
-- **`D` (Settings):** Enters the Setpoint & Voltage Scaling menu.
+- **`C` or `1` (PID Tuning):** Enters the PID Parameters menu (Kp, Ki, Kd edit).
 - **`D` (Settings):** Enters the Setpoint & Voltage Scaling menu.
 
 ### System Control (Symbols)
@@ -39,7 +38,7 @@ The 4x4 matrix keypad is the primary physical interface for configuring the syst
 ### Navigation & Editing (Numbers)
 *When inside a configuration menu (B, C, or D):*
 - **`2` (Up):** Move cursor UP to the previous parameter.
-- **`0` (Down):** Move cursor DOWN to the next parameter. *(Remapped from '8' due to hardware fault)*
+- **`8` (Down):** Move cursor DOWN to the next parameter.
 - **`4` (Decrease):** Decrement the selected value.
 - **`6` (Increase):** Increment the selected value.
 

@@ -58,11 +58,14 @@ void FirebaseManager::handle() {
         uploadState();
         
         // Periodically refresh ALL settings from the cloud to catch "Silent Saves" from the website
+        // commented out to prevent overwriting new settings set via command path
+        /*
         static unsigned long lastSettingsRefresh = 0;
         if (millis() - lastSettingsRefresh > 2000) { // FAST REFRESH: Every 2 seconds
             lastSettingsRefresh = millis();
             downloadSettings(); 
         }
+        */
 
         vTaskDelay(pdMS_TO_TICKS(10));
         checkCommands();

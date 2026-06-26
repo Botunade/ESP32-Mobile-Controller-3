@@ -255,10 +255,98 @@ const char* DASHBOARD_HTML = R"=====(
             100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
 
+        /* Keypad Reference Card */
+        .keypad-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1.25rem;
+        }
+        .key-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.75rem 0.5rem;
+            border-radius: 10px;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            transition: background 0.2s;
+        }
+        .key-cell.active-key {
+            background: #dbeafe;
+            border-color: #93c5fd;
+            animation: key-flash 0.4s ease;
+        }
+        @keyframes key-flash {
+            0% { background: #bfdbfe; transform: scale(1.06); }
+            100% { background: #dbeafe; transform: scale(1); }
+        }
+        .key-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            background: var(--text-main);
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.18);
+        }
+        .key-badge.action  { background: var(--primary); }
+        .key-badge.danger  { background: var(--danger); }
+        .key-badge.success { background: var(--success); }
+        .key-badge.warn    { background: #f59e0b; }
+        .key-badge.muted   { background: #94a3b8; }
+        .key-desc {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-align: center;
+            line-height: 1.2;
+        }
+        .activity-log {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            min-height: 60px;
+        }
+        .activity-log li {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.82rem;
+            padding: 0.4rem 0.6rem;
+            border-radius: 6px;
+            background: #f8fafc;
+            border-left: 3px solid var(--border);
+            animation: slide-in 0.3s ease;
+        }
+        .activity-log li .act-key {
+            font-weight: 700;
+            font-size: 0.9rem;
+            min-width: 22px;
+            text-align: center;
+        }
+        .activity-log li .act-time {
+            margin-left: auto;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .grid-top { grid-template-columns: 1fr; }
             .header { flex-direction: column; gap: 1rem; text-align: center; }
+            .keypad-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -442,6 +530,42 @@ const char* DASHBOARD_HTML = R"=====(
                 <div>
                     <p><strong>Safety:</strong> Bypass Open at Setpoint + 0.5 BAR</p>
                     <p><strong>Limit:</strong> Tank max 8L / Sensor max 12 BAR</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Keypad Reference Card -->
+        <div class="card">
+            <div class="card-header">&#9109; Keypad Reference &amp; Recent Activity</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <!-- Key Map -->
+                <div>
+                    <p style="font-size:0.78rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.75rem;">Key Layout</p>
+                    <div class="keypad-grid" id="keypad-visual">
+                        <div class="key-cell" id="kc-1"><span class="key-badge action">1</span><span class="key-desc">PID<br>Tuning</span></div>
+                        <div class="key-cell" id="kc-2"><span class="key-badge action">2</span><span class="key-desc">Navigate<br>UP</span></div>
+                        <div class="key-cell" id="kc-3"><span class="key-badge muted">3</span><span class="key-desc">&mdash;</span></div>
+                        <div class="key-cell" id="kc-A"><span class="key-badge action">A</span><span class="key-desc">Home<br>Screen</span></div>
+                        <div class="key-cell" id="kc-4"><span class="key-badge warn">4</span><span class="key-desc">Decrement<br>&minus;Value</span></div>
+                        <div class="key-cell" id="kc-5"><span class="key-badge warn">5</span><span class="key-desc">Manual<br>Calibrate</span></div>
+                        <div class="key-cell" id="kc-6"><span class="key-badge warn">6</span><span class="key-desc">Increment<br>+Value</span></div>
+                        <div class="key-cell" id="kc-B"><span class="key-badge action">B</span><span class="key-desc">Vessel<br>Size</span></div>
+                        <div class="key-cell" id="kc-7"><span class="key-badge muted">7</span><span class="key-desc">&mdash;</span></div>
+                        <div class="key-cell" id="kc-8"><span class="key-badge action">8</span><span class="key-desc">Navigate<br>DOWN</span></div>
+                        <div class="key-cell" id="kc-9"><span class="key-badge action">9</span><span class="key-desc">Keypad<br>Test</span></div>
+                        <div class="key-cell" id="kc-C"><span class="key-badge action">C</span><span class="key-desc">PID<br>Tuning</span></div>
+                        <div class="key-cell" id="kc-star"><span class="key-badge success">&#42;</span><span class="key-desc">START<br>System</span></div>
+                        <div class="key-cell" id="kc-0"><span class="key-badge action">0</span><span class="key-desc">Keypad<br>Test</span></div>
+                        <div class="key-cell" id="kc-hash"><span class="key-badge danger">&#35;</span><span class="key-desc">STOP<br>System</span></div>
+                        <div class="key-cell" id="kc-D"><span class="key-badge action">D</span><span class="key-desc">Calibration<br>Menu</span></div>
+                    </div>
+                </div>
+                <!-- Activity Feed -->
+                <div>
+                    <p style="font-size:0.78rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.75rem;">Recent Activity <span id="last-key-badge" style="display:inline-block; padding:0.1rem 0.5rem; border-radius:9999px; background:#e0f2fe; color:#0369a1; font-size:0.75rem; font-weight:700; margin-left:0.5rem;">—</span></p>
+                    <ul class="activity-log" id="activity-log">
+                        <li style="color:var(--text-muted); font-style:italic; background:none; border:none;">No keypresses yet&hellip;</li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -635,27 +759,88 @@ const char* DASHBOARD_HTML = R"=====(
             });
         }
 
+        // Keypad activity log state
+        const keyLabels = {
+            '1':'PID Tuning','2':'Navigate UP','3':'—','4':'Decrement','5':'Manual Calib.',
+            '6':'Increment','7':'—','8':'Navigate DOWN','9':'Keypad Test','0':'Keypad Test',
+            'A':'Home Screen','B':'Vessel Size','C':'PID Tuning','D':'Calibration Menu',
+            '*':'START System','#':'STOP System'
+        };
+        const keyColors = {
+            '*':'var(--success)','#':'var(--danger)','A':'var(--primary)','B':'var(--primary)',
+            'C':'var(--primary)','D':'var(--primary)','2':'var(--primary)','8':'var(--primary)',
+            '4':'#f59e0b','5':'#f59e0b','6':'#f59e0b','1':'var(--primary)'
+        };
+        const keyCellMap = {
+            '1':'kc-1','2':'kc-2','3':'kc-3','4':'kc-4','5':'kc-5','6':'kc-6',
+            '7':'kc-7','8':'kc-8','9':'kc-9','0':'kc-0',
+            'A':'kc-A','B':'kc-B','C':'kc-C','D':'kc-D','*':'kc-star','#':'kc-hash'
+        };
+        let lastKeyTracked = null;
+        const activityFeed = [];
+
+        function padTime(n) { return String(n).padStart(2,'0'); }
+        function nowStr() {
+            const d = new Date();
+            return padTime(d.getHours())+':'+padTime(d.getMinutes())+':'+padTime(d.getSeconds());
+        }
+
+        function updateKeypadActivity(key) {
+            if (!key || key === lastKeyTracked) return;
+            lastKeyTracked = key;
+
+            // Flash the visual key cell
+            const cellId = keyCellMap[key];
+            if (cellId) {
+                const cell = document.getElementById(cellId);
+                if (cell) {
+                    cell.classList.add('active-key');
+                    setTimeout(() => cell.classList.remove('active-key'), 600);
+                }
+            }
+
+            // Update last key badge
+            const badge = document.getElementById('last-key-badge');
+            badge.innerText = '[' + key + '] ' + (keyLabels[key] || '?');
+            badge.style.background = '#e0f2fe';
+
+            // Add to activity feed
+            const label = keyLabels[key] || 'Unknown';
+            const color = keyColors[key] || '#64748b';
+            activityFeed.unshift({ key, label, time: nowStr(), color });
+            if (activityFeed.length > 5) activityFeed.pop();
+
+            const ul = document.getElementById('activity-log');
+            ul.innerHTML = activityFeed.map(e =>
+                `<li style="border-left-color:${e.color}">
+                    <span class="act-key" style="color:${e.color}">${e.key}</span>
+                    <span>${e.label}</span>
+                    <span class="act-time">${e.time}</span>
+                </li>`
+            ).join('');
+        }
+
         async function fetchData() {
             try {
                 const response = await fetch('/data');
                 const data = await response.json();
                 
-                // Update text elements
-                document.getElementById('pressure').innerText = data.displayP.toFixed(2);
-                document.getElementById('rawPressure').innerText = data.pressure.toFixed(2);
+                // Update text elements — PV and SP to 1 decimal place
+                document.getElementById('pressure').innerText = data.displayP.toFixed(1);
+                document.getElementById('rawPressure').innerText = data.pressure.toFixed(1);
                 document.getElementById('pressure-percent').innerText = (data.pressurePercent || 0).toFixed(1);
                 document.getElementById('voltage').innerText = data.voltage.toFixed(2);
-                document.getElementById('setpoint-display').innerText = data.setpoint.toFixed(2);
+                document.getElementById('setpoint-display').innerText = data.setpoint.toFixed(1);
                 document.getElementById('setpoint-percent').innerText = (data.setpointPercent || 0).toFixed(1);
-                document.getElementById('airVolume').innerText = (data.airVolume || 0).toFixed(2);
+                document.getElementById('airVolume').innerText = (data.airVolume || 0).toFixed(1);
                 document.getElementById('currentMA').innerText = (data.currentMA || 4.00).toFixed(2);
                 
                 // Diagnostics
                 document.getElementById('rawADC').innerText = Math.round(data.rawADC);
                 document.getElementById('sensorV').innerText = data.sensorV.toFixed(2);
                 document.getElementById('dacValue').innerText = data.dacValue;
-                document.getElementById('pidOut').innerText = data.pidOut.toFixed(2);
-                document.getElementById('scaled3v3').innerText = (data.scaled3v3 || 0).toFixed(2);
+                document.getElementById('pidOut').innerText = data.pidOut.toFixed(1);
+                document.getElementById('scaled3v3') && (document.getElementById('scaled3v3').innerText = (data.scaled3v3 || 0).toFixed(2));
                 if (document.getElementById('liveSensorV')) document.getElementById('liveSensorV').innerText = data.sensorV.toFixed(2);
                 if (document.getElementById('liveScaledV')) document.getElementById('liveScaledV').innerText = (data.scaled3v3 || 0).toFixed(2);
                 
@@ -663,6 +848,9 @@ const char* DASHBOARD_HTML = R"=====(
                 document.getElementById('pidP').innerText = data.pidP.toFixed(1);
                 document.getElementById('pidI').innerText = data.pidI.toFixed(1);
                 document.getElementById('pidD').innerText = data.pidD.toFixed(1);
+
+                // Keypad activity
+                if (data.lastKey) updateKeypadActivity(data.lastKey);
                 
                 // Update Status Badge and Master Buttons
                 const statusEl = document.getElementById('status');
@@ -962,6 +1150,15 @@ void PressureWebServer::handleData() {
     doc["wifiSSID"] = _settings->wifiSSID;
 
     doc["setpointPercent"] = _state->setpointPercent;
+    doc["pressurePercent"] = _state->pressurePercent;
+    
+    // Send lastKey as a single-char string for the dashboard keypad activity panel
+    char keyStr[2] = { _state->lastKeyPressed, '\0' };
+    if (_state->lastKeyPressed == '\0' || _state->lastKeyPressed == ' ') {
+        doc["lastKey"] = (char*)nullptr; // No key pressed yet
+    } else {
+        doc["lastKey"] = keyStr;
+    }
 
     String json;
     serializeJson(doc, json);

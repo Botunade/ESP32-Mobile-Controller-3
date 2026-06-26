@@ -62,6 +62,7 @@ struct SystemState {
     float iTerm;            // Current I component for telemetry
     float dTerm;            // Current D component for telemetry
     bool forceCalibration;   // Trigger for the ramp test
+    char lastKeyPressed;     // Last key pressed on keypad (for web dashboard)
 };
 
 class PressureWebServer {

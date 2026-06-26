@@ -50,11 +50,11 @@ void MenuSystem::update() {
 
 void MenuSystem::handleKey(char key) {
     // Global Commands
-    if (key == '*') { _currentState = HOME; _editParamIndex = 0; }
+    if (key == 'A') { _currentState = HOME; _editParamIndex = 0; }
     else if (key == 'B') { _currentState = VESSEL_SIZE; _editParamIndex = 0; }
-    else if (key == '1') { _currentState = PID_PARAMS; _editParamIndex = 0; } // Was '9' and 'C', remapped for bad row
+    else if (key == 'C' || key == '1') { _currentState = PID_PARAMS; _editParamIndex = 0; } // Support both C and 1 for PID Tuning
     else if (key == 'D') { _currentState = SETPOINT_VOLTAGE; _editParamIndex = 0; }
-    else if (key == 'A') { 
+    else if (key == '*') { 
         Serial.println("[ACTION] System START requested from Keypad");
         _state->systemActive = true; 
     }
@@ -63,24 +63,25 @@ void MenuSystem::handleKey(char key) {
         _state->forceCalibration = true;
         _state->systemActive = true; 
     }
-    else if (key == '2') {
+    else if (key == '#') {
         Serial.println("[ACTION] Emergency STOP requested from Keypad");
         _state->systemActive = false;
         _state->solenoidState = false; // Hardware Safety Cutoff Marker
         _currentState = HOME;
     }
-    else if (key == '#') {
+    else if (key == '0' || key == '9') {
         _currentState = KEYPAD_DIAGNOSTIC;
         _editParamIndex = 0;
     }
 
     _lastKey = key; // Store for diagnostics
+    _state->lastKeyPressed = key; // Share with web dashboard
 
     // Navigation and Editing (only in setting menus)
-    if (_currentState != HOME) {
+    if (_currentState != HOME && _currentState != KEYPAD_DIAGNOSTIC) {
         int maxParams = (_currentState == VESSEL_SIZE) ? 0 : 2;
         
-        if (key == '0') { // UP (Moved from 2)
+        if (key == '2') { // UP
             _editParamIndex--;
             if (_editParamIndex < 0) _editParamIndex = maxParams; 
         }
@@ -116,7 +117,7 @@ void MenuSystem::handleKey(char key) {
                 default: break;
             }
         }
-        else if (key == '5') { // RIGHT (Increment)
+        else if (key == '6') { // RIGHT (Increment)
             switch (_currentState) {
                 case VESSEL_SIZE:
                     _settings->tankVolume += 1;
@@ -154,27 +155,33 @@ void MenuSystem::updateLCD() {
 }
 
 void MenuSystem::drawHome() {
+    // Line 0: PV and SP in BAR (1 decimal place)
     _lcd.setCursor(0, 0);
-    _lcd.print("--- SYSTEM HOME ---");
+    _lcd.print("PV:");
+    _lcd.print(_state->displayPressure, 1);
+    _lcd.print("B SP:");
+    _lcd.print(_settings->setpoint, 1);
+    _lcd.print("B  ");
+
+    // Line 1: Percentage equivalents
     _lcd.setCursor(0, 1);
-    _lcd.print("PV%: ");
+    _lcd.print("PV%:");
     _lcd.print(_state->pressurePercent, 1);
     _lcd.print("% ");
-    
-    _lcd.print("SP%: ");
+    _lcd.print("SP%:");
     _lcd.print(_state->setpointPercent, 1);
     _lcd.print("% ");
     
+    // Line 2: Output
     _lcd.setCursor(0, 2);
     _lcd.print("Out%: ");
-    // Controller Output % based on PID effort (already 0-100 range)
     float outPercent = _state->pidOutput;
     if (outPercent < 0) outPercent = 0;
     if (outPercent > 100) outPercent = 100;
     _lcd.print(outPercent, 1);
     _lcd.print("%  ");
-    _lcd.setCursor(0, 3);
 
+    // Line 3: Status
     if (!_state->systemActive) {
         _lcd.setCursor(14, 3); _lcd.print("[IDLE]");
     } else {
@@ -237,5 +244,5 @@ void MenuSystem::drawKeypadDiagnostic() {
     _lcd.print(buf);
 
     _lcd.setCursor(0, 3);
-    _lcd.print("*:EXIT MODE         ");
+    _lcd.print("A:EXIT MODE         ");
 }
